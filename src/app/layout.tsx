@@ -4,6 +4,7 @@ import { Providers } from "@/components/app/providers"
 import { Sidebar } from "@/components/app/sidebar"
 import { getWorld } from "@/lib/data"
 import { buildRows } from "@/lib/metrics"
+import { dbIsEphemeral } from "@/db/config"
 import "./globals.css"
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "latin-ext"] })
@@ -58,7 +59,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 count: rows.filter((r) => r.verticalId === v.id).length,
               }))}
             />
-            <main className="min-w-0 flex-1">{children}</main>
+            <main className="min-w-0 flex-1">
+              {dbIsEphemeral && (
+                <div role="status" className="border-b border-move-line bg-move-soft px-4 py-2.5 text-sm sm:px-8">
+                  <strong className="font-medium">Temporary storage.</strong>{" "}
+                  <span className="text-muted-foreground">
+                    No database is connected, so anything you record here disappears when Vercel restarts the app. Add Turso under
+                    the project&rsquo;s Storage tab in Vercel, then redeploy.
+                  </span>
+                </div>
+              )}
+              {children}
+            </main>
           </div>
         </Providers>
       </body>

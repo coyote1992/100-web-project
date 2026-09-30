@@ -10,9 +10,9 @@ import * as schema from "../src/db/schema"
 import { seed } from "../src/db/seed"
 
 async function main() {
-  const url = process.env.DATABASE_URL ?? "file:./data/hundred.db"
+  const url = process.env.DATABASE_URL ?? process.env.TURSO_DATABASE_URL ?? "file:./data/hundred.db"
   if (url.startsWith("file:")) mkdirSync(path.dirname(url.slice(5)), { recursive: true })
-  const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN })
+  const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN })
   const db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") })
   for (const t of [schema.events, schema.workLogs, schema.notes, schema.messages, schema.prospects, schema.batches, schema.verticals]) {

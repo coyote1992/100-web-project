@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { getSettings, getWorld } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { dbIsEphemeral, dbUrl } from "@/db/config"
 import { Page, PageHeader } from "@/components/app/page"
 import { ChaseDays, DataActions, PromptEditor } from "./settings-client"
 
@@ -96,7 +97,19 @@ export default async function SettingsPage() {
       </Block>
 
       <Block title="Data" description="Everything lives in one SQLite database: a local file, or Turso when deployed.">
-        <DataActions hasData={world.verticals.length > 0 || world.prospects.length > 0} />
+        <div className="grid gap-4">
+          <Status
+            on={!dbIsEphemeral}
+            label={
+              dbUrl.startsWith("file:")
+                ? dbIsEphemeral
+                  ? "Temporary file on Vercel: connect Turso to keep data"
+                  : "Local SQLite file"
+                : `Hosted database: ${dbUrl.replace(/^\w+:\/\//, "").split("/")[0]}`
+            }
+          />
+          <DataActions hasData={world.verticals.length > 0 || world.prospects.length > 0} />
+        </div>
       </Block>
     </Page>
   )

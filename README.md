@@ -22,11 +22,14 @@ npm run dev
 
 The SQLite database lives in `data/hundred.db` and migrations run automatically.
 
-## Deploy
+## Deploy (Vercel)
 
-1. Create a Turso database. Set `DATABASE_URL` (libsql://…) and `DATABASE_AUTH_TOKEN`.
-2. Set `APP_PASSWORD` so the app isn't public.
-3. For email, set `INBOUND_TOKEN` and `OUTREACH_ADDRESS`, then forward the outreach mailbox to `/api/inbound`. Cloudflare Email Workers, Postmark inbound and a Gmail Apps Script all work; see Settings → Email for the payload.
+Pushing to `main` deploys automatically through Vercel's GitHub integration. No build settings are needed.
+
+1. **Database (required to keep data).** In the Vercel project go to **Storage → Create / Connect → Turso** and connect it to this project. That sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`; tables are created on first request. Redeploy afterwards. Until then the app runs on a temporary file and shows a yellow "Temporary storage" banner.
+2. **Password.** Add `APP_PASSWORD` under Settings → Environment Variables so the app isn't public.
+3. **Email (optional).** Set `INBOUND_TOKEN` and `OUTREACH_ADDRESS`, then forward the outreach mailbox to `https://<your-app>/api/inbound` (see the app's Settings → Email).
+4. **Demo data (optional).** Settings → Data → Load demo data, or `TURSO_DATABASE_URL=… TURSO_AUTH_TOKEN=… npm run db:seed` from your machine.
 
 ## Stack
 
