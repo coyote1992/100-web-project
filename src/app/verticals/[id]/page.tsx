@@ -3,12 +3,11 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeftIcon } from "lucide-react"
 import { getWorld } from "@/lib/data"
-import { buildRows, byVertical, flowCounts } from "@/lib/metrics"
-import { day, hours, pct, ratio } from "@/lib/format"
-import { Page, Panel, Section, Ledger } from "@/components/app/page"
-import { FlowBoard } from "@/components/app/flow-board"
+import { buildRows, byVertical, funnel, timingOf } from "@/lib/metrics"
+import { day, pct } from "@/lib/format"
+import { Ledger, Page, Panel, Section } from "@/components/app/page"
+import { FunnelChart } from "@/components/app/funnel"
 import { StagePill, VerticalMark } from "@/components/app/status"
-import { NewSiteButton } from "@/components/app/new-site-button"
 import { VerticalEditor } from "../vertical-client"
 
 export async function generateMetadata({ params }: PageProps<"/verticals/[id]">): Promise<Metadata> {
@@ -23,9 +22,8 @@ export default async function VerticalPage({ params }: PageProps<"/verticals/[id
   const vertical = world.verticals.find((v) => v.id === id)
   if (!vertical) notFound()
   const rows = buildRows(world).filter((r) => r.verticalId === id)
-  const [v] = byVertical(rows, [vertical])
-  const flow = flowCounts(rows)
-  const lessons = world.notes.filter((n) => n.isLesson && n.verticalId === id)
+  const [v] = byVertical(rows, [vertical], timingOf(world.templates))
+  const lessons = rows.flatMap((r) => r.lessons.map((l) => ({ ...l, site: r }))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
   return (
     <Page>
@@ -33,66 +31,70 @@ export default async function VerticalPage({ params }: PageProps<"/verticals/[id
         <ArrowLeftIcon className="size-3.5" />
         Verticals
       </Link>
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <header className="mb-8">
         <h1 className="display flex items-center gap-3 text-5xl leading-none">
           <VerticalMark hue={vertical.hue} className="size-3" />
           {vertical.name}
         </h1>
-        <NewSiteButton verticalId={vertical.id} label="Add a site here" />
       </header>
 
       <Ledger
         className="mb-10 border-y py-5"
         items={[
-          { label: "Sites", value: `${v.count} / ${vertical.target}` },
-          { label: "Reply to question", value: pct(v.question.rate) },
-          { label: "Reply to site", value: pct(v.site.rate) },
-          { label: "Positive", value: `${v.positives} (${pct(v.positiveRate)})` },
-          { label: "Spec hours", value: hours(v.specHours) },
-          { label: "Pos / hour", value: ratio(v.pph) },
+          { label: "Sites", value: `${rows.length} / ${vertical.target}` },
+          { label: "Question answered", value: pct(v.questionRate) },
+          { label: "Site answered", value: pct(v.siteRate) },
+          { label: "Positive", value: `${v.positive} (${pct(v.positiveRate)})` },
+          { label: "Calls held", value: v.called },
+          { label: "Paid", value: v.won },
         ]}
       />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="grid min-w-0 content-start gap-10">
-          <Section title="Flow for this vertical">
-            <Panel className="paper-grid p-3">
-              <FlowBoard mode="totals" nodes={flow.nodes} edges={flow.edges} />
-            </Panel>
-          </Section>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid min-w-0 content-start gap-10 lg:order-none">
           <Section title="Sites" aside={`${rows.length}`}>
             <Panel className="divide-y">
-              {rows.length === 0 && <p className="p-5 text-sm text-muted-foreground">No sites in this vertical yet.</p>}
+              {rows.length === 0 && <p className="p-5 text-sm text-muted-foreground">No sites yet. Ask ChatGPT to add the firms for {vertical.name}.</p>}
               {rows.map((r) => (
                 <Link key={r.id} href={`/sites/${r.id}`} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-accent/60">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{r.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">{r.city}</span>
                   </span>
-                  <StagePill stage={r.stage} parked={r.parked} />
+                  <StagePill stage={r.stage} status={r.status} />
                 </Link>
               ))}
             </Panel>
           </Section>
-          <Section title="Lessons" aside={<Link href={`/lessons?vertical=${id}`} className="hover:text-foreground">All lessons</Link>}>
+          <Section title="Funnel">
+            <Panel className="p-5">
+              <FunnelChart data={funnel(rows)} />
+            </Panel>
+          </Section>
+          <Section title="Lessons from these sites">
             {lessons.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No lessons for this vertical yet.</p>
+              <p className="text-sm text-muted-foreground">Lessons you write on a site page collect here.</p>
             ) : (
-              <ul className="grid gap-4">
-                {lessons.map((n) => (
-                  <li key={n.id} className="border-l-0">
-                    <p className="display text-xl leading-snug">{n.body}</p>
-                    <p className="num mt-1 text-xs text-muted-foreground">{day(n.createdAt)}</p>
+              <ul className="grid gap-5">
+                {lessons.map((l) => (
+                  <li key={l.id}>
+                    <p className="display text-xl leading-snug text-pretty">{l.body}</p>
+                    <p className="num mt-1 text-xs text-muted-foreground">
+                      <Link href={`/sites/${l.site.id}`} className="hover:text-foreground hover:underline">
+                        {l.site.name}
+                      </Link>{" "}
+                      · {day(l.createdAt)}
+                    </p>
                   </li>
                 ))}
               </ul>
             )}
           </Section>
         </div>
-        <aside>
+        <aside className="order-first lg:order-none">
           <Panel className="p-5 lg:sticky lg:top-8">
-            <h2 className="mb-4 text-sm font-semibold">Settings & playbook</h2>
-            <VerticalEditor v={{ id: vertical.id, name: vertical.name, hue: vertical.hue, target: vertical.target, playbook: vertical.playbook }} />
+            <h2 className="mb-4 text-sm font-semibold">Reference sites & settings</h2>
+            <VerticalEditor v={{ id: vertical.id, name: vertical.name, hue: vertical.hue, target: vertical.target, reference1: vertical.reference1, reference2: vertical.reference2 }} />
           </Panel>
         </aside>
       </div>

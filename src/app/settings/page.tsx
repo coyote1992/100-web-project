@@ -1,10 +1,13 @@
 import type { Metadata } from "next"
 import { headers } from "next/headers"
-import { getSettings, getWorld } from "@/lib/data"
+import { getWorld } from "@/lib/data"
+import { instructions } from "@/lib/chatgpt"
+import { dbHost, dbKind } from "@/db/config"
 import { cn } from "@/lib/utils"
-import { dbIsEphemeral, dbUrl } from "@/db/config"
+import { ago } from "@/lib/format"
 import { Page, PageHeader } from "@/components/app/page"
-import { ChaseDays, DataActions, PromptEditor } from "./settings-client"
+import { CopyBlock } from "@/components/app/copy-block"
+import { DataActions } from "./settings-client"
 
 export const metadata: Metadata = { title: "Settings" }
 
@@ -30,60 +33,64 @@ function Status({ on, label }: { on: boolean; label: string }) {
 }
 
 export default async function SettingsPage() {
-  const [settings, world, h] = await Promise.all([getSettings(), getWorld(), headers()])
-  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`
-  const token = !!process.env.INBOUND_TOKEN
+  const [world, h] = await Promise.all([getWorld(), headers()])
+  const base = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`
+  const token = !!process.env.API_TOKEN
   const pre = "overflow-x-auto rounded-lg border bg-muted/50 p-3 font-mono text-[12px] leading-relaxed"
 
   return (
     <Page className="max-w-[1040px]">
       <PageHeader title="Settings" />
 
-      <Block title="Build prompt" description="Copied from each site with its URLs filled in, plus that vertical's playbook appended.">
-        <PromptEditor prompt={settings.prompt} customised={settings.promptCustomised} />
-      </Block>
-
-      <Block title="Follow-ups" description="Sites waiting on a reply show up under “Needs you” once they've been quiet this long.">
-        <ChaseDays value={settings.chaseDays} />
-      </Block>
-
       <Block
-        id="email"
-        title="Email"
-        description={
-          <>
-            Use a dedicated outreach mailbox and forward its mail here. Incoming mail is matched to a site by address or domain,
-            then waits in the Inbox to be rated.
-          </>
-        }
+        id="chatgpt"
+        title="Connect ChatGPT"
+        description="ChatGPT is the hands of this app: it adds firms, syncs your Gmail, extracts what people say and moves sites along. It talks to a small token-protected API."
       >
-        <div className="grid gap-5 text-sm">
+        <div className="grid gap-6 text-sm">
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <Status on={token} label={token ? "INBOUND_TOKEN is set" : "INBOUND_TOKEN not set"} />
-            <Status on={!!process.env.OUTREACH_ADDRESS} label={process.env.OUTREACH_ADDRESS ? `Outreach address: ${process.env.OUTREACH_ADDRESS}` : "OUTREACH_ADDRESS not set"} />
+            <Status on={token} label={token ? "API_TOKEN is set" : "API_TOKEN is not set: the API is off"} />
+            <Status on={!!world.lastSyncAt} label={world.lastSyncAt ? `Last mailbox sweep ${ago(world.lastSyncAt)}` : "No mailbox sweep yet"} />
           </div>
-          <div>
-            <p className="mb-2 font-medium">Webhook</p>
-            <pre className={pre}>{`curl -X POST ${origin}/api/inbound \\
-  -H "Authorization: Bearer $INBOUND_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"from":"owner@their-club.hu","to":"you@outreach.hu",
-       "subject":"Re: your new site","text":"Looks great!",
-       "date":"2026-09-30T18:04:00Z","messageId":"<abc@mail>"}'`}</pre>
-          </div>
-          <ol className="grid list-decimal gap-2 pl-5 text-muted-foreground marker:text-foreground/50">
+          <ol className="grid list-decimal gap-3 pl-5 text-muted-foreground marker:text-foreground/50">
             <li>
-              Set <code className="text-foreground">INBOUND_TOKEN</code> (any long random string) and{" "}
-              <code className="text-foreground">OUTREACH_ADDRESS</code> (your outreach mailbox) in the environment.
+              Choose a long random string and set it as <code className="text-foreground">API_TOKEN</code> in the app&rsquo;s environment (Vercel → Settings → Environment Variables), then redeploy.
             </li>
             <li>
-              Forward mail with whatever fits your provider: a <span className="text-foreground">Cloudflare Email Worker</span>, a{" "}
-              <span className="text-foreground">Postmark inbound</span> webhook, or a small{" "}
-              <span className="text-foreground">Gmail Apps Script</span> on a 5-minute trigger that posts new threads.
+              In ChatGPT, create a custom GPT (or a project) and add an <span className="text-foreground">Action</span>. Import the schema from the URL below. For authentication choose{" "}
+              <span className="text-foreground">API key → Bearer</span> and paste the token.
             </li>
-            <li>BCC the outreach mailbox on what you send. Mail from your own address is logged as outgoing.</li>
-            <li>Duplicates are ignored by <code className="text-foreground">messageId</code>, so re-sending is safe.</li>
+            <li>Paste the instructions below into the GPT&rsquo;s instructions. They tell it the flow and the 30-minute mailbox sweep.</li>
+            <li>Give it your Gmail (the connector for the outreach inbox) and schedule the sweep as a recurring task, every 30 minutes.</li>
           </ol>
+          <div className="grid gap-1.5">
+            <p className="font-medium">Schema URL</p>
+            <pre className={pre}>{base}/api/v1/openapi.json</pre>
+            <p className="text-xs text-muted-foreground">Public on purpose: it describes the API but grants nothing without the token.</p>
+          </div>
+          <div className="grid gap-1.5">
+            <p className="font-medium">Instructions for ChatGPT</p>
+            <CopyBlock text={instructions(base)} label="Instructions" maxHeight="20rem" />
+          </div>
+          <div className="grid gap-1.5">
+            <p className="font-medium">Try it</p>
+            <pre className={pre}>{`curl ${base}/api/v1/tasks \\
+  -H "Authorization: Bearer $API_TOKEN"`}</pre>
+          </div>
+        </div>
+      </Block>
+
+      <Block title="Database" description="Everything lives in Postgres. Supabase is the intended home.">
+        <div className="grid gap-4 text-sm">
+          <Status
+            on={dbKind === "postgres"}
+            label={dbKind === "postgres" ? `Postgres: ${dbHost()}` : dbKind === "local" ? "Local development database (./data/pglite)" : "Temporary storage: connect Supabase to keep data"}
+          />
+          {dbKind !== "postgres" && (
+            <p className="text-muted-foreground">
+              Set <code className="text-foreground">DATABASE_URL</code> to your Supabase connection string (Project settings → Database → Connection string, the pooler one) and redeploy. Tables are created on first load.
+            </p>
+          )}
         </div>
       </Block>
 
@@ -91,25 +98,13 @@ export default async function SettingsPage() {
         <div className="grid gap-2 text-sm">
           <Status on={!!process.env.APP_PASSWORD} label={process.env.APP_PASSWORD ? "Password protection is on" : "No password set: anyone with the URL can open it"} />
           <p className="text-muted-foreground">
-            Set <code className="text-foreground">APP_PASSWORD</code> to turn on browser sign-in (any username). The email webhook uses its own token.
+            Set <code className="text-foreground">APP_PASSWORD</code> to turn on browser sign-in (any username). The ChatGPT API uses its own token, not this password.
           </p>
         </div>
       </Block>
 
-      <Block title="Data" description="Everything lives in one SQLite database: a local file, or Turso when deployed.">
-        <div className="grid gap-4">
-          <Status
-            on={!dbIsEphemeral}
-            label={
-              dbUrl.startsWith("file:")
-                ? dbIsEphemeral
-                  ? "Temporary file on Vercel: connect Turso to keep data"
-                  : "Local SQLite file"
-                : `Hosted database: ${dbUrl.replace(/^\w+:\/\//, "").split("/")[0]}`
-            }
-          />
-          <DataActions hasData={world.verticals.length > 0 || world.prospects.length > 0} />
-        </div>
+      <Block title="Data" description="Export a backup, load fictional demo data to explore, or start clean.">
+        <DataActions hasData={world.verticals.length > 0 || world.sites.length > 0} />
       </Block>
     </Page>
   )

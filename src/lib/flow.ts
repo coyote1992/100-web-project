@@ -1,184 +1,243 @@
 /**
- * The outreach flow, mirrored from the Whimsical "Outreach flow" board.
+ * The outreach flow, as the application understands it.
  *
- * Send question ─┬─ No reply ─┐
- *                └─ Reply ────┴─ Send site ─┬─ No reply ── Call ─┬─ Negative
- *                                           │                    └─ Call & Proposal ─┬─ Negative
- *                                           └─ Reply ─┬─ Negative                    └─ Paid client
- *                                                     └─ Positive ── Call & Proposal
+ *  new → question_sent ─┬─ (they reply) question_replied ─┐
+ *                       └─ (silent N days) ───────────────┴→ site_sent ─┬─ site_replied → site_positive → call_scheduling → call_scheduled → called → proposal_sent → won
+ *                                                                        └─ (silent M days) → call ───────────────────────────────┘
+ *  any stage → lost
  */
 
-export const NODE_KEYS = [
+export const STAGES = [
+  "new",
   "question_sent",
-  "question_no_reply",
   "question_replied",
   "site_sent",
-  "site_no_reply",
   "site_replied",
-  "call",
-  "site_negative",
   "site_positive",
-  "call_negative",
-  "call_proposal",
-  "proposal_negative",
-  "paid",
+  "call_scheduling",
+  "call_scheduled",
+  "called",
+  "proposal_sent",
+  "won",
+  "lost",
 ] as const
+export type Stage = (typeof STAGES)[number]
 
-export type NodeKey = (typeof NODE_KEYS)[number]
+export const BUILD_STATES = ["todo", "building", "ready"] as const
+export type BuildState = (typeof BUILD_STATES)[number]
 
-/** Who holds the ball at this node. */
-export type Status = "waiting" | "your_move" | "won" | "lost"
+export const EXTRACT_KINDS = ["objection", "question", "interest", "other"] as const
+export type ExtractKind = (typeof EXTRACT_KINDS)[number]
 
-/** action: something you do (amber in the board); outcome: something that happens to you. */
-export type NodeKind = "action" | "outcome" | "won" | "lost"
-
-export type FlowNode = {
-  key: NodeKey
-  label: string
-  short: string
-  kind: NodeKind
-  status: Status
-  /** Grid position for the flow board: column 0–6, row 0–4. */
-  col: number
-  row: number
+export const STAGE_LABEL: Record<Stage, string> = {
+  new: "Not contacted",
+  question_sent: "Question sent",
+  question_replied: "Replied to question",
+  site_sent: "Site sent",
+  site_replied: "Replied to site",
+  site_positive: "Positive reply",
+  call_scheduling: "Scheduling a call",
+  call_scheduled: "Call scheduled",
+  called: "Called",
+  proposal_sent: "Proposal sent",
+  won: "Paid client",
+  lost: "Closed",
 }
 
-export const NODES: Record<NodeKey, FlowNode> = {
-  question_sent: { key: "question_sent", label: "Send question", short: "Question sent", kind: "action", status: "waiting", col: 0, row: 2 },
-  question_no_reply: { key: "question_no_reply", label: "No reply", short: "No reply to question", kind: "outcome", status: "your_move", col: 1, row: 1 },
-  question_replied: { key: "question_replied", label: "Reply", short: "Replied to question", kind: "outcome", status: "your_move", col: 1, row: 3 },
-  site_sent: { key: "site_sent", label: "Send site", short: "Site sent", kind: "action", status: "waiting", col: 2, row: 2 },
-  site_no_reply: { key: "site_no_reply", label: "No reply", short: "No reply to site", kind: "outcome", status: "your_move", col: 3, row: 1 },
-  site_replied: { key: "site_replied", label: "Reply", short: "Replied to site", kind: "outcome", status: "waiting", col: 3, row: 3 },
-  call: { key: "call", label: "Call", short: "Called", kind: "action", status: "your_move", col: 4, row: 0 },
-  site_negative: { key: "site_negative", label: "Negative", short: "Declined the site", kind: "lost", status: "lost", col: 4, row: 2.6 },
-  site_positive: { key: "site_positive", label: "Positive", short: "Positive reply", kind: "outcome", status: "your_move", col: 4, row: 3.9 },
-  call_negative: { key: "call_negative", label: "Negative", short: "Declined on call", kind: "lost", status: "lost", col: 5, row: 0 },
-  call_proposal: { key: "call_proposal", label: "Call & Proposal", short: "Proposal out", kind: "action", status: "waiting", col: 5, row: 1.8 },
-  proposal_negative: { key: "proposal_negative", label: "Negative", short: "Declined proposal", kind: "lost", status: "lost", col: 6, row: 1 },
-  paid: { key: "paid", label: "Paid client", short: "Paid client", kind: "won", status: "won", col: 6, row: 2.4 },
+export const BUILD_LABEL: Record<BuildState, string> = { todo: "Not built", building: "Building", ready: "Site ready" }
+export const EXTRACT_LABEL: Record<ExtractKind, string> = {
+  objection: "Objections",
+  question: "Questions",
+  interest: "Interest",
+  other: "Other",
 }
 
-export const EDGES: [NodeKey, NodeKey][] = [
-  ["question_sent", "question_no_reply"],
-  ["question_sent", "question_replied"],
-  ["question_no_reply", "site_sent"],
-  ["question_replied", "site_sent"],
-  ["site_sent", "site_no_reply"],
-  ["site_sent", "site_replied"],
-  ["site_no_reply", "call"],
-  ["site_replied", "site_negative"],
-  ["site_replied", "site_positive"],
-  ["call", "call_negative"],
-  ["call", "call_proposal"],
-  ["site_positive", "call_proposal"],
-  ["call_proposal", "proposal_negative"],
-  ["call_proposal", "paid"],
+/** The steps shown in the progress strip on a site page. */
+export const PIPELINE: { stage: Stage; label: string }[] = [
+  { stage: "question_sent", label: "Question" },
+  { stage: "site_sent", label: "Site" },
+  { stage: "site_positive", label: "Positive" },
+  { stage: "call_scheduled", label: "Call" },
+  { stage: "proposal_sent", label: "Proposal" },
+  { stage: "won", label: "Paid" },
 ]
 
-/** Nodes that count as a positive response. */
-export const POSITIVE_NODES: NodeKey[] = ["site_positive", "call_proposal", "paid"]
-
-export type Tone = "default" | "positive" | "negative" | "quiet"
-
-export type Transition = {
-  id: string
-  label: string
-  /** Nodes recorded, in order. Lets one click walk "Reply → Positive". */
-  path: NodeKey[]
-  tone: Tone
-  /** Extra input worth asking for. */
-  asks?: "sentiment" | "call" | "deal"
-  hint?: string
-}
-
-const T = (t: Transition) => t
-
-/** What you can record next from a given position. `null` = not contacted yet. */
-export function transitionsFrom(stage: NodeKey | null): Transition[] {
-  switch (stage) {
-    case null:
-      return [
-        T({ id: "q", label: "Sent the question", path: ["question_sent"], tone: "default", hint: "Opener email asking if they'd be open to a new site" }),
-        T({ id: "s", label: "Sent the site directly", path: ["site_sent"], tone: "quiet", hint: "Skip the question step" }),
-      ]
-    case "question_sent":
-      return [
-        T({ id: "qr", label: "They replied", path: ["question_replied"], tone: "positive", asks: "sentiment" }),
-        T({ id: "qn", label: "No reply", path: ["question_no_reply"], tone: "quiet" }),
-      ]
-    case "question_no_reply":
-    case "question_replied":
-      return [T({ id: "s", label: "Sent the site", path: ["site_sent"], tone: "default" })]
-    case "site_sent":
-      return [
-        T({ id: "sp", label: "Positive reply", path: ["site_replied", "site_positive"], tone: "positive", asks: "sentiment" }),
-        T({ id: "sn", label: "Negative reply", path: ["site_replied", "site_negative"], tone: "negative" }),
-        T({ id: "sx", label: "No reply", path: ["site_no_reply"], tone: "quiet" }),
-      ]
-    case "site_replied":
-      return [
-        T({ id: "sp", label: "It was positive", path: ["site_positive"], tone: "positive" }),
-        T({ id: "sn", label: "It was negative", path: ["site_negative"], tone: "negative" }),
-      ]
-    case "site_no_reply":
-      return [
-        T({ id: "cp", label: "Called — wants a proposal", path: ["call", "call_proposal"], tone: "positive", asks: "call" }),
-        T({ id: "cn", label: "Called — not interested", path: ["call", "call_negative"], tone: "negative", asks: "call" }),
-        T({ id: "c", label: "Called — undecided", path: ["call"], tone: "quiet", asks: "call" }),
-      ]
-    case "call":
-      return [
-        T({ id: "cp", label: "Moving to proposal", path: ["call_proposal"], tone: "positive", asks: "call" }),
-        T({ id: "cn", label: "Not interested", path: ["call_negative"], tone: "negative" }),
-      ]
-    case "site_positive":
-      return [T({ id: "cp", label: "Call & proposal done", path: ["call_proposal"], tone: "default", asks: "call" })]
-    case "call_proposal":
-      return [
-        T({ id: "w", label: "Paid — new client", path: ["paid"], tone: "positive", asks: "deal" }),
-        T({ id: "l", label: "Declined the proposal", path: ["proposal_negative"], tone: "negative" }),
-      ]
-    default:
-      return []
+/** Position of a stage along the strip; stages between two markers count as the earlier one. */
+export function pipelineIndex(stage: Stage) {
+  const order: Record<Stage, number> = {
+    new: -1,
+    question_sent: 0,
+    question_replied: 0,
+    site_sent: 1,
+    site_replied: 1,
+    site_positive: 2,
+    call_scheduling: 2,
+    call_scheduled: 3,
+    called: 3,
+    proposal_sent: 4,
+    won: 5,
+    lost: -2,
   }
+  return order[stage]
 }
 
-export function statusOf(stage: string | null, parked = false): Status | "not_started" | "parked" {
-  if (parked) return "parked"
-  if (!stage) return "not_started"
-  return NODES[stage as NodeKey]?.status ?? "waiting"
-}
+export type Status = "not_started" | "waiting" | "your_move" | "won" | "lost"
 
-export const STATUS_META: Record<ReturnType<typeof statusOf>, { label: string; token: string }> = {
+export const STATUS_META: Record<Status, { label: string; token: string }> = {
   not_started: { label: "Not contacted", token: "var(--st-idle)" },
   waiting: { label: "Waiting on them", token: "var(--st-wait)" },
   your_move: { label: "Your move", token: "var(--st-move)" },
   won: { label: "Paid client", token: "var(--st-won)" },
   lost: { label: "Closed", token: "var(--st-lost)" },
-  parked: { label: "Parked", token: "var(--st-idle)" },
 }
 
-export function stageLabel(stage: string | null) {
-  if (!stage) return "Not contacted"
-  return NODES[stage as NodeKey]?.short ?? stage
+export type Timing = { siteFollowUpDays: number; callAfterSiteDays: number }
+export const DEFAULT_TIMING: Timing = { siteFollowUpDays: 4, callAfterSiteDays: 3 }
+
+/* ------------------------------------------------------------------ actions */
+
+export type ActionAsk = "callAt" | "deal" | "reason"
+export type StepAction = {
+  id: string
+  label: string
+  to: Stage
+  tone: "default" | "positive" | "negative"
+  asks?: ActionAsk
 }
 
-export const BUILD_STEPS = [
-  { key: "scouted", label: "Scouted" },
-  { key: "building", label: "Building" },
-  { key: "ready", label: "Demo ready" },
-] as const
+const A = (a: StepAction) => a
+const lost = (label = "Close as lost"): StepAction => A({ id: "lost", label, to: "lost", tone: "negative", asks: "reason" })
 
-export const WORK_KINDS = [
-  { key: "research", label: "Research", speculative: true },
-  { key: "build", label: "Build", speculative: true },
-  { key: "qa", label: "QA & polish", speculative: true },
-  { key: "outreach", label: "Outreach", speculative: true },
-  { key: "sales", label: "Calls & sales", speculative: false },
-  { key: "admin", label: "Admin", speculative: false },
-] as const
+/** What can be recorded from a stage. Ticking a task performs one of these. */
+export function actionsFrom(stage: Stage): StepAction[] {
+  switch (stage) {
+    case "new":
+      return [
+        A({ id: "question_sent", label: "Question sent", to: "question_sent", tone: "default" }),
+        A({ id: "site_sent", label: "Site sent", to: "site_sent", tone: "default" }),
+      ]
+    case "question_sent":
+      return [
+        A({ id: "question_replied", label: "They replied", to: "question_replied", tone: "positive" }),
+        A({ id: "site_sent", label: "Site sent", to: "site_sent", tone: "default" }),
+        lost(),
+      ]
+    case "question_replied":
+      return [A({ id: "site_sent", label: "Site sent", to: "site_sent", tone: "default" }), lost()]
+    case "site_sent":
+      return [
+        A({ id: "site_replied", label: "They replied", to: "site_replied", tone: "positive" }),
+        A({ id: "call_scheduled", label: "Call booked", to: "call_scheduled", tone: "default", asks: "callAt" }),
+        A({ id: "called", label: "Called — interested", to: "called", tone: "positive" }),
+        lost("Called — not interested"),
+      ]
+    case "site_replied":
+      return [
+        A({ id: "site_positive", label: "Positive", to: "site_positive", tone: "positive" }),
+        lost("Negative — close"),
+      ]
+    case "site_positive":
+      return [
+        A({ id: "call_scheduling", label: "Scheduling email sent", to: "call_scheduling", tone: "default" }),
+        A({ id: "call_scheduled", label: "Call booked", to: "call_scheduled", tone: "default", asks: "callAt" }),
+        lost(),
+      ]
+    case "call_scheduling":
+      return [A({ id: "call_scheduled", label: "Call booked", to: "call_scheduled", tone: "default", asks: "callAt" }), lost()]
+    case "call_scheduled":
+      return [A({ id: "called", label: "Call done — interested", to: "called", tone: "positive" }), lost("Call done — not interested")]
+    case "called":
+      return [A({ id: "proposal_sent", label: "Proposal sent", to: "proposal_sent", tone: "default" }), lost()]
+    case "proposal_sent":
+      return [A({ id: "won", label: "Paid", to: "won", tone: "positive", asks: "deal" }), lost("Declined")]
+    default:
+      return []
+  }
+}
 
-export type WorkKind = (typeof WORK_KINDS)[number]["key"]
+/* ------------------------------------------------------------------ next steps */
 
-export const SPECULATIVE_KINDS = WORK_KINDS.filter((k) => k.speculative).map((k) => k.key) as string[]
+export type StepKind = "send_question" | "send_site" | "build" | "call" | "rate_reply" | "schedule_email" | "proposal"
+
+export type Step = {
+  kind: StepKind
+  title: string
+  detail?: string
+  due: Date
+  /** due: needs you now. upcoming: scheduled for later. */
+  state: "due" | "upcoming"
+  actions: StepAction[]
+}
+
+const DAY = 86_400_000
+const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY)
+
+type StepInput = { stage: Stage; stageAt: Date; build: BuildState; callAt: Date | null; createdAt: Date }
+
+/** Live next steps for a site, from its stage, the clock and the timing settings. */
+export function nextSteps(site: StepInput, timing: Timing, now = new Date()): Step[] {
+  const mk = (s: Omit<Step, "state">): Step => ({ ...s, state: s.due.getTime() <= now.getTime() ? "due" : "upcoming" })
+  const acts = actionsFrom(site.stage)
+  const pick = (...ids: string[]) => acts.filter((a) => ids.includes(a.id))
+  const out: Step[] = []
+  const built = site.build === "ready"
+
+  switch (site.stage) {
+    case "new":
+      out.push(mk({ kind: "send_question", title: "Send the opening question", due: site.createdAt, actions: pick("question_sent") }))
+      break
+    case "question_sent": {
+      const due = addDays(site.stageAt, timing.siteFollowUpDays)
+      out.push(
+        mk({
+          kind: "send_site",
+          title: built ? `Send the site if still no reply` : `Send the site if still no reply (not built yet)`,
+          detail: `No reply after ${timing.siteFollowUpDays} days means the site goes out anyway.`,
+          due,
+          actions: pick("question_replied", "site_sent", "lost"),
+        }),
+      )
+      if (!built) out.push(mk({ kind: "build", title: "Build the site", detail: "It needs to be ready by the time the question has been quiet.", due, actions: [] }))
+      break
+    }
+    case "question_replied":
+      if (built) out.push(mk({ kind: "send_site", title: "They replied — send the site", due: site.stageAt, actions: pick("site_sent", "lost") }))
+      else out.push(mk({ kind: "build", title: "They replied — build the site now", due: site.stageAt, actions: [] }))
+      break
+    case "site_sent":
+      out.push(
+        mk({
+          kind: "call",
+          title: "No reply — call them",
+          detail: `Silent for ${timing.callAfterSiteDays} days after the site went out.`,
+          due: addDays(site.stageAt, timing.callAfterSiteDays),
+          actions: pick("site_replied", "call_scheduled", "called", "lost"),
+        }),
+      )
+      break
+    case "site_replied":
+      out.push(mk({ kind: "rate_reply", title: "Rate their reply", detail: "Positive or negative?", due: site.stageAt, actions: pick("site_positive", "lost") }))
+      break
+    case "site_positive":
+      out.push(mk({ kind: "schedule_email", title: "Positive reply — send the call scheduling email", due: site.stageAt, actions: pick("call_scheduling", "call_scheduled", "lost") }))
+      break
+    case "call_scheduled":
+      out.push(mk({ kind: "call", title: "Call them", due: site.callAt ?? site.stageAt, actions: pick("called", "lost") }))
+      break
+    case "called":
+      out.push(mk({ kind: "proposal", title: "Send the proposal", due: site.stageAt, actions: pick("proposal_sent", "lost") }))
+      break
+  }
+  return out
+}
+
+export function statusOf(stage: Stage, steps: Step[]): Status {
+  if (stage === "won") return "won"
+  if (stage === "lost") return "lost"
+  if (stage === "new") return "not_started"
+  return steps.some((s) => s.state === "due" && s.kind !== "build") ? "your_move" : "waiting"
+}
+
+export function isStage(x: unknown): x is Stage {
+  return typeof x === "string" && (STAGES as readonly string[]).includes(x)
+}

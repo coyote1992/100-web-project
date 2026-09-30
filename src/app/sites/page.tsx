@@ -3,7 +3,6 @@ import { getWorld } from "@/lib/data"
 import { buildRows } from "@/lib/metrics"
 import { Page, PageHeader } from "@/components/app/page"
 import { SitesTable, type SiteListRow } from "./sites-table"
-import { NewSiteButton } from "@/components/app/new-site-button"
 
 export const metadata: Metadata = { title: "Sites" }
 
@@ -11,37 +10,34 @@ export default async function SitesPage({ searchParams }: PageProps<"/sites">) {
   const sp = await searchParams
   const world = await getWorld()
   const rows = buildRows(world)
-  const list: SiteListRow[] = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    city: r.city,
-    verticalId: r.verticalId,
-    verticalName: r.vertical?.name ?? "",
-    hue: r.vertical?.hue ?? 0,
-    batchId: r.batchId,
-    batchName: r.batch?.name ?? "",
-    build: r.build,
-    stage: r.stage,
-    parked: r.parked,
-    status: r.status,
-    specMinutes: r.specMinutes,
-    lastActivityAt: r.lastActivityAt.getTime(),
-    oldSiteUrl: r.oldSiteUrl,
-    demoUrl: r.demoUrl,
-    positive: r.positive,
-  }))
+  const list: SiteListRow[] = rows.map((r) => {
+    const due = r.steps.find((s) => s.state === "due" && s.kind !== "build") ?? r.steps.find((s) => s.state === "due")
+    const upcoming = r.steps.find((s) => s.state === "upcoming")
+    return {
+      id: r.id,
+      name: r.name,
+      city: r.city,
+      verticalId: r.verticalId,
+      verticalName: r.vertical?.name ?? "",
+      hue: r.vertical?.hue ?? 0,
+      build: r.build,
+      stage: r.stage,
+      status: r.status,
+      oldSiteUrl: r.oldSiteUrl,
+      demoUrl: r.demoUrl,
+      next: due ? { title: due.title, due: true } : upcoming ? { title: upcoming.title, due: false, at: upcoming.due.getTime() } : null,
+      lastMessage: r.lastMessage ? { direction: r.lastMessage.direction, at: r.lastMessage.at.getTime() } : null,
+      lastActivityAt: r.lastActivityAt.getTime(),
+      positive: r.reached.has("site_positive"),
+    }
+  })
 
   return (
     <Page>
-      <PageHeader
-        title="Sites"
-        description="Every firm you've started on, in any form. Click a row to record the next step."
-        actions={<NewSiteButton />}
-      />
+      <PageHeader title="Sites" description="Every firm in the experiment. They're added by ChatGPT, one page each. Open one for the conversation, the notes ChatGPT pulled out of it, and the build prompt." />
       <SitesTable
         rows={list}
         verticals={world.verticals.map((v) => ({ id: v.id, name: v.name, hue: v.hue }))}
-        batches={world.batches.map((b) => ({ id: b.id, name: b.name }))}
         initialView={typeof sp.view === "string" ? sp.view : "all"}
         initialVertical={typeof sp.vertical === "string" ? sp.vertical : ""}
       />

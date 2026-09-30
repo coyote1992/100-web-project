@@ -1,46 +1,63 @@
 # Hundred
 
-A tracker for the speculative website experiment: 5 verticals, 20 firms each. Rebuild a firm's site, send it, and record every step until the firm says no or pays.
+A project-management view of the speculative website experiment: 5 verticals, 20 firms each. **ChatGPT does the admin** (adds firms, syncs the Gmail inbox, pulls out what people say, moves sites along). **This app is where you see it all**, and where you tick, copy and write lessons.
 
-## What it does
+## How it fits together
 
-- **Sites.** Add a firm as soon as you start on it (press `N` and paste its URL). Track the build as *Scouted → Building → Demo ready*.
-- **Outreach flow.** Each step from the whiteboard flow is one click: *Send question → Reply / No reply → Send site → Reply (positive / negative) / No reply → Call → Call & Proposal → Paid client*. Every step can be undone, backdated or given a note. Replies get a warm/neutral/cold rating.
-- **Time.** A start/stop timer, or quick `+15m / +30m / +1h / +2h` chips, logged per site and per kind of work. Research, build, QA and outreach count as **speculative** time. Calls and admin don't.
-- **Notes & lessons.** Write a note on any site and flag the ones worth keeping as lessons. You can promote a lesson into its vertical's **playbook**.
-- **Build prompt.** "Copy build prompt" fills in the master rebuild prompt with the firm's URL and reference sites, then adds that vertical's playbook. Edit the template in Settings.
-- **Insights.** Positive responses per hour of speculative work, positive rate per batch and batch size, reply rates, median reply time, and breakdowns by vertical, batch and build method.
-- **Email.** `POST /api/inbound` accepts forwarded mail (in or out), matches it to a site by address or domain, and drops duplicates. Phone calls are recorded by hand in the flow (length plus what was said).
+```
+Gmail (outreach inbox) ⇄ ChatGPT ⇄ /api/v1 ⇄ Hundred (Next.js) ⇄ Supabase (Postgres)
+```
+
+- **Verticals** (you): name, plus the two reference sites, pasted by hand.
+- **Sites** (ChatGPT): one page per firm, created through the API. Each page has the email conversation (read-only), what ChatGPT extracted from it (call time, objections, questions, interest), the next step, a **copy-ready build prompt** for Claude Code, and a place for your lessons.
+- **Tasks**: next steps appear on their own from each site's stage and the clock (send the site after N quiet days, call after M quiet days, rate a reply, send the scheduling email, call on the booked day, send the proposal). Tick one and the site moves on. You can add your own tasks too.
+- **Templates**: the build prompt, the send-the-site email and the call-scheduling email, plus the two timing values. ChatGPT reads them through the API.
+- **Insights**: funnel, reply and positive rates with the sample size next to them, does asking first help, reply timing, pace, by vertical, by opening question, where sites are lost, and what people objected to.
+
+## The flow
+
+`new → question sent → (replied) → site sent → (replied → positive) → scheduling a call → call scheduled → called → proposal → paid`, with *closed* possible anywhere. If the question stays quiet for `siteFollowUpDays` (4) the site goes out anyway. If the site stays quiet for `callAfterSiteDays` (3), a call task appears.
 
 ## Run it
 
 ```bash
 npm install
-npm run db:seed     # optional: fictional demo data (or load it from Settings)
+npm run db:seed     # optional: fictional demo data (or "Load demo data" in Settings)
 npm run dev
 ```
 
-The SQLite database lives in `data/hundred.db` and migrations run automatically.
+Without `DATABASE_URL` it runs on a local Postgres in `./data/pglite`, with the same SQL as Supabase.
 
-## Deploy (Vercel)
+## Deploy (Vercel + Supabase)
 
-Pushing to `main` deploys automatically through Vercel's GitHub integration. No build settings are needed.
+1. **Supabase.** Create a project; copy the connection string (Project settings → Database → Connection string, the pooler one) into `DATABASE_URL` on Vercel. Tables are created on first load. The Vercel × Supabase integration works too (`POSTGRES_URL` is read as well).
+2. **API token.** Set `API_TOKEN` to a long random string.
+3. **Password.** Set `APP_PASSWORD` so the app isn't public (browser sign-in, any username). The API uses the token instead.
+4. Redeploy, then follow **Settings → Connect ChatGPT**.
 
-1. **Database (required to keep data).** In the Vercel project go to **Storage → Create / Connect → Turso** and connect it to this project. That sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`; tables are created on first request. Redeploy afterwards. Until then the app runs on a temporary file and shows a yellow "Temporary storage" banner.
-2. **Password.** Add `APP_PASSWORD` under Settings → Environment Variables so the app isn't public.
-3. **Email (optional).** Set `INBOUND_TOKEN` and `OUTREACH_ADDRESS`, then forward the outreach mailbox to `https://<your-app>/api/inbound` (see the app's Settings → Email).
-4. **Demo data (optional).** Settings → Data → Load demo data, or `TURSO_DATABASE_URL=… TURSO_AUTH_TOKEN=… npm run db:seed` from your machine.
+Until `DATABASE_URL` is set, Vercel runs on temporary storage and the app shows a banner saying so.
 
-## Stack
+## The API (`/api/v1`, bearer token)
 
-Next.js 16 (App Router, server actions), shadcn/ui on Base UI, Tailwind v4, Drizzle and libSQL/SQLite, Recharts, and Sonner.
+Machine-readable spec: `/api/v1/openapi.json` (import it as a Custom GPT action). The operating manual for ChatGPT is on the Settings page and at `/api/v1/instructions`.
+
+| | |
+|---|---|
+| `GET /sites` · `POST /sites` | list (filter by stage, vertical, email, `needs=attention`) · add one or many firms |
+| `GET /sites/{id}` | everything on a site, plus ready-filled drafts of the build prompt and both emails |
+| `PATCH /sites/{id}` | stage (optionally backdated), call time and notes, demo URL, contact details… |
+| `POST /messages` | log emails, in or out. Matches the site by id, address or domain, dedupes by `externalId`, moves the stage on replies and on `sentKind` |
+| `POST /sites/{id}/extracts` | objections, questions, interest |
+| `GET /tasks` · `POST /tasks` · `PATCH /tasks/{id}` | what needs you, and tasks of your own |
+| `GET /templates` · `PUT /templates` | templates and timing |
+| `POST /sync` | stamp the end of a mailbox sweep, shown in the sidebar |
 
 ## Where things live
 
 | | |
 |---|---|
-| `src/lib/flow.ts` | The outreach flow: nodes, edges, and the steps available from each stage |
+| `src/lib/flow.ts` | Stages, the actions from each stage, and the next-step rules |
 | `src/lib/metrics.ts` | Every number on the dashboards |
+| `src/lib/domain.ts` | All writes, shared by the UI and the API |
+| `src/lib/chatgpt.ts` | ChatGPT instructions and the OpenAPI schema |
 | `src/db/schema.ts` | Tables. After changing them run `npm run db:generate` |
-| `src/app/actions.ts` | All mutations |
-| `src/app/api/inbound` | The email webhook |

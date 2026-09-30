@@ -1,145 +1,141 @@
 import { sql } from "drizzle-orm"
-import { integer, sqliteTable, text, index, uniqueIndex } from "drizzle-orm/sqlite-core"
+import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core"
 
-const id = () =>
-  text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID())
+const id = () => uuid("id").primaryKey().defaultRandom()
+const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" })
+const createdAt = () => ts("created_at").notNull().default(sql`now()`)
 
-const createdAt = () =>
-  integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch() * 1000)`)
+import type { BuildState, ExtractKind, Stage } from "../lib/flow"
 
-export const verticals = sqliteTable("verticals", {
+export const verticals = pgTable("verticals", {
   id: id(),
   name: text("name").notNull(),
-  hue: integer("hue").notNull().default(80),
-  /** Vertical-specific build notes appended to the master prompt (e.g. TENNIS.md). */
-  playbook: text("playbook").notNull().default(""),
+  hue: integer("hue").notNull().default(75),
+  /** The two reference sites the build prompt points Claude Code at. Entered by hand. */
+  reference1: text("reference1").notNull().default(""),
+  reference2: text("reference2").notNull().default(""),
   target: integer("target").notNull().default(20),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: createdAt(),
 })
 
-export const batches = sqliteTable("batches", {
-  id: id(),
-  name: text("name").notNull(),
-  notes: text("notes").notNull().default(""),
-  createdAt: createdAt(),
-})
-
-export const prospects = sqliteTable(
-  "prospects",
+/** One firm = one site = one page. Created through the API (ChatGPT), never by hand. */
+export const sites = pgTable(
+  "sites",
   {
     id: id(),
     name: text("name").notNull(),
-    verticalId: text("vertical_id")
+    verticalId: uuid("vertical_id")
       .notNull()
       .references(() => verticals.id, { onDelete: "cascade" }),
-    batchId: text("batch_id").references(() => batches.id, { onDelete: "set null" }),
     city: text("city").notNull().default(""),
     oldSiteUrl: text("old_site_url").notNull().default(""),
     demoUrl: text("demo_url").notNull().default(""),
-    /** Newline separated reference sites used for the build. */
-    references: text("references").notNull().default(""),
     contactName: text("contact_name").notNull().default(""),
     email: text("email").notNull().default(""),
     phone: text("phone").notNull().default(""),
-    /** scouted → building → ready */
-    build: text("build", { enum: ["scouted", "building", "ready"] })
-      .notNull()
-      .default("scouted"),
-    buildMethod: text("build_method").notNull().default(""),
-    /** Latest node reached in the outreach flow. Null = not contacted yet. */
-    stage: text("stage"),
-    parked: integer("parked", { mode: "boolean" }).notNull().default(false),
+    stage: text("stage").$type<Stage>().notNull().default("new"),
+    /** When the current stage was entered; the follow-up timers count from here. */
+    stageAt: ts("stage_at").notNull().default(sql`now()`),
+    build: text("build").$type<BuildState>().notNull().default("todo"),
+    /** Which opening question was used, so replies can be compared across questions. */
+    questionVariant: text("question_variant").notNull().default(""),
+    callAt: ts("call_at"),
+    callNotes: text("call_notes").notNull().default(""),
+    lostReason: text("lost_reason").notNull().default(""),
     dealValue: integer("deal_value"),
     createdAt: createdAt(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: ts("updated_at").notNull().default(sql`now()`),
   },
-  (t) => [index("prospects_vertical_idx").on(t.verticalId), index("prospects_batch_idx").on(t.batchId)],
+  (t) => [index("sites_vertical_idx").on(t.verticalId), index("sites_email_idx").on(t.email)],
 )
 
-/** Every step taken through the outreach flow, in order. */
-export const events = sqliteTable(
+/** Every stage change, oldest first. Drives the timers and every metric. */
+export const events = pgTable(
   "events",
   {
     id: id(),
-    prospectId: text("prospect_id")
+    siteId: uuid("site_id")
       .notNull()
-      .references(() => prospects.id, { onDelete: "cascade" }),
-    node: text("node").notNull(),
-    at: integer("at", { mode: "timestamp_ms" }).notNull(),
-    /** Optional rating of a reply: -1 negative, 0 neutral, 1 positive. */
-    sentiment: integer("sentiment"),
-    note: text("note").notNull().default(""),
-    /** Call length for call nodes. */
-    minutes: integer("minutes"),
-    createdAt: createdAt(),
-  },
-  (t) => [index("events_prospect_idx").on(t.prospectId, t.at)],
-)
-
-export const workLogs = sqliteTable(
-  "work_logs",
-  {
-    id: id(),
-    prospectId: text("prospect_id").references(() => prospects.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["research", "build", "qa", "outreach", "sales", "admin"] })
-      .notNull()
-      .default("build"),
-    minutes: integer("minutes").notNull().default(0),
-    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-    /** Null while the timer is running. */
-    endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+      .references(() => sites.id, { onDelete: "cascade" }),
+    stage: text("stage").$type<Stage>().notNull(),
+    at: ts("at").notNull(),
     note: text("note").notNull().default(""),
     createdAt: createdAt(),
   },
-  (t) => [index("work_prospect_idx").on(t.prospectId)],
+  (t) => [index("events_site_idx").on(t.siteId, t.at)],
 )
 
-export const notes = sqliteTable("notes", {
-  id: id(),
-  prospectId: text("prospect_id").references(() => prospects.id, { onDelete: "cascade" }),
-  verticalId: text("vertical_id").references(() => verticals.id, { onDelete: "set null" }),
-  body: text("body").notNull(),
-  isLesson: integer("is_lesson", { mode: "boolean" }).notNull().default(false),
-  createdAt: createdAt(),
-})
-
-/** Emails, either logged by hand or pushed in through /api/inbound. */
-export const messages = sqliteTable(
+/** The email conversation with a firm. Written by the ChatGPT sync, read-only in the app. */
+export const messages = pgTable(
   "messages",
   {
     id: id(),
-    prospectId: text("prospect_id").references(() => prospects.id, { onDelete: "set null" }),
-    direction: text("direction", { enum: ["in", "out"] }).notNull(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    direction: text("direction").$type<"in" | "out">().notNull(),
     fromAddr: text("from_addr").notNull().default(""),
     toAddr: text("to_addr").notNull().default(""),
     subject: text("subject").notNull().default(""),
     body: text("body").notNull().default(""),
-    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+    at: ts("at").notNull(),
     externalId: text("external_id"),
-    rating: integer("rating"),
-    source: text("source", { enum: ["manual", "webhook"] }).notNull().default("manual"),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("messages_external_idx").on(t.externalId)],
+  (t) => [index("messages_site_idx").on(t.siteId, t.at), uniqueIndex("messages_external_idx").on(t.externalId)],
 )
 
-export type Vertical = typeof verticals.$inferSelect
-export type Batch = typeof batches.$inferSelect
-export type Prospect = typeof prospects.$inferSelect
-export type FlowEvent = typeof events.$inferSelect
-export type WorkLog = typeof workLogs.$inferSelect
-export type Note = typeof notes.$inferSelect
-export type Message = typeof messages.$inferSelect
+/** What ChatGPT pulled out of the emails: objections, questions, signs of interest. */
+export const extracts = pgTable(
+  "extracts",
+  {
+    id: id(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<ExtractKind>().notNull(),
+    text: text("text").notNull(),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("extracts_site_idx").on(t.siteId)],
+)
 
-/** Small key/value store for app-wide settings (master prompt, chase delay…). */
-export const settings = sqliteTable("settings", {
+export const lessons = pgTable(
+  "lessons",
+  {
+    id: id(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("lessons_site_idx").on(t.siteId)],
+)
+
+/** Hand-made or ChatGPT-made tasks. Next steps in the flow are worked out live, not stored. */
+export const tasks = pgTable("tasks", {
+  id: id(),
+  siteId: uuid("site_id").references(() => sites.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  note: text("note").notNull().default(""),
+  dueAt: ts("due_at"),
+  doneAt: ts("done_at"),
+  source: text("source").$type<"manual" | "chatgpt">().notNull().default("manual"),
+  createdAt: createdAt(),
+})
+
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 })
+
+export type Vertical = typeof verticals.$inferSelect
+export type Site = typeof sites.$inferSelect
+export type FlowEvent = typeof events.$inferSelect
+export type Message = typeof messages.$inferSelect
+export type Extract = typeof extracts.$inferSelect
+export type Lesson = typeof lessons.$inferSelect
+export type Task = typeof tasks.$inferSelect

@@ -1,34 +1,52 @@
 import "server-only"
 import { cache } from "react"
 import { connection } from "next/server"
-import { db, ready, schema } from "@/db"
 import { asc, desc } from "drizzle-orm"
+import { getDb, schema } from "@/db"
 import type { World } from "./metrics"
-import { DEFAULT_PROMPT } from "./prompt"
+import { DEFAULT_TEMPLATES, type Templates } from "./templates"
 
 export const getWorld = cache(async function getWorld(): Promise<World> {
   await connection()
-  await ready()
-  const [verticals, batches, prospects, events, workLogs, notes, messages] = await Promise.all([
+  const db = await getDb()
+  const [verticals, sites, events, messages, extracts, lessons, tasks, settings] = await Promise.all([
     db.select().from(schema.verticals).orderBy(asc(schema.verticals.sortOrder), asc(schema.verticals.createdAt)),
-    db.select().from(schema.batches).orderBy(asc(schema.batches.createdAt)),
-    db.select().from(schema.prospects).orderBy(desc(schema.prospects.updatedAt)),
+    db.select().from(schema.sites).orderBy(desc(schema.sites.updatedAt)),
     db.select().from(schema.events).orderBy(asc(schema.events.at)),
-    db.select().from(schema.workLogs).orderBy(desc(schema.workLogs.startedAt)),
-    db.select().from(schema.notes).orderBy(desc(schema.notes.createdAt)),
-    db.select().from(schema.messages).orderBy(desc(schema.messages.at)),
+    db.select().from(schema.messages).orderBy(asc(schema.messages.at)),
+    db.select().from(schema.extracts).orderBy(desc(schema.extracts.createdAt)),
+    db.select().from(schema.lessons).orderBy(desc(schema.lessons.createdAt)),
+    db.select().from(schema.tasks).orderBy(asc(schema.tasks.createdAt)),
+    db.select().from(schema.settings),
   ])
-  return { verticals, batches, prospects, events, workLogs, notes, messages }
-})
-
-export const getSettings = cache(async function getSettings() {
-  await connection()
-  await ready()
-  const rows = await db.select().from(schema.settings)
-  const map = new Map(rows.map((r) => [r.key, r.value]))
+  const map = new Map(settings.map((s) => [s.key, s.value]))
+  const num = (k: string, d: number) => {
+    const n = Number(map.get(k))
+    return Number.isFinite(n) && n > 0 ? n : d
+  }
+  const templates: Templates = {
+    buildPrompt: map.get("buildPrompt") ?? DEFAULT_TEMPLATES.buildPrompt,
+    sendSiteTemplate: map.get("sendSiteTemplate") ?? DEFAULT_TEMPLATES.sendSiteTemplate,
+    callSchedulingTemplate: map.get("callSchedulingTemplate") ?? DEFAULT_TEMPLATES.callSchedulingTemplate,
+    siteFollowUpDays: num("siteFollowUpDays", DEFAULT_TEMPLATES.siteFollowUpDays),
+    callAfterSiteDays: num("callAfterSiteDays", DEFAULT_TEMPLATES.callAfterSiteDays),
+  }
+  const last = Number(map.get("lastSyncAt"))
   return {
-    prompt: map.get("prompt") ?? DEFAULT_PROMPT,
-    promptCustomised: map.has("prompt"),
-    chaseDays: Number(map.get("chaseDays") ?? 4),
+    verticals,
+    sites,
+    events,
+    messages,
+    extracts,
+    lessons,
+    tasks,
+    templates,
+    customised: {
+      buildPrompt: map.has("buildPrompt"),
+      sendSiteTemplate: map.has("sendSiteTemplate"),
+      callSchedulingTemplate: map.has("callSchedulingTemplate"),
+    },
+    lastSyncAt: Number.isFinite(last) && last > 0 ? new Date(last) : null,
+    lastSyncNote: map.get("lastSyncNote") ?? "",
   }
 })

@@ -1,95 +1,81 @@
-import { eq } from "drizzle-orm"
-import type { LibSQLDatabase } from "drizzle-orm/libsql"
+import type { DB } from "./index"
 import * as schema from "./schema"
-import { transitionsFrom, type NodeKey, type Transition } from "../lib/flow"
-
-type DB = LibSQLDatabase<typeof schema>
+import type { Stage } from "../lib/flow"
 
 /**
- * Fictional demo data: five verticals, three batches, ~40 sites spread across
- * every part of the outreach flow. Loaded from Settings → "Load demo data".
+ * Fictional demo data: five verticals and ~30 firms spread across every stage,
+ * with the emails, extracted notes and lessons that would come with them.
  */
 
 const VERTICALS = [
-  {
-    name: "Tennis clubs",
-    hue: 75,
-    playbook:
-      "- Lead with courts + coaching, not the clubhouse.\n- Booking is the #1 job: court hire and trial lesson CTAs above the fold.\n- Coach bios with real credentials sell the academy.\n- Parents are the buyer for junior programmes — give them a clear weekly schedule.",
-  },
-  { name: "Padel clubs", hue: 150, playbook: "- Show the courts at night — lighting sells.\n- Make open-match / find-a-partner obvious.\n- Price per court per hour belongs on the homepage." },
-  { name: "Pilates studios", hue: 330, playbook: "- Calm, editorial, lots of whitespace.\n- Intro offer (first class / intro pack) is the primary CTA.\n- Reformer vs mat explained in one line each." },
-  { name: "Gyms & boxes", hue: 25, playbook: "- Free trial CTA everywhere.\n- Real member photos beat stock every time.\n- Timetable must work on a phone." },
-  { name: "Wedding venues", hue: 260, playbook: "- Photography first; let the venue breathe.\n- Capacity, season, and a brochure download.\n- Enquiry form asks for date + guest count only." },
+  { name: "Tennis clubs", hue: 75, ref1: "https://www.lagunabeachtennisacademy.com", ref2: "https://www.nettennisclub.example" },
+  { name: "Padel clubs", hue: 150, ref1: "https://www.padelhaus.example", ref2: "https://www.smashpadel.example" },
+  { name: "Pilates studios", hue: 330, ref1: "https://www.reformerstudio.example", ref2: "" },
+  { name: "Gyms & boxes", hue: 25, ref1: "", ref2: "" },
+  { name: "Wedding venues", hue: 260, ref1: "https://www.villaestate.example", ref2: "https://www.barnvenue.example" },
 ]
 
-type Script = { steps: string[]; build?: "scouted" | "building" | "ready"; parked?: boolean; deal?: number }
+type Path = Stage[]
+const P = {
+  won: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive", "call_scheduling", "call_scheduled", "called", "proposal_sent", "won"],
+  wonCold: ["question_sent", "site_sent", "called", "proposal_sent", "won"],
+  proposal: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive", "call_scheduled", "called", "proposal_sent"],
+  called: ["question_sent", "site_sent", "called"],
+  scheduled: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive", "call_scheduling", "call_scheduled"],
+  scheduling: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive", "call_scheduling"],
+  positive: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive"],
+  rate: ["question_sent", "question_replied", "site_sent", "site_replied"],
+  siteNo: ["question_sent", "question_replied", "site_sent", "site_replied", "lost"],
+  callNo: ["question_sent", "site_sent", "lost"],
+  propNo: ["question_sent", "question_replied", "site_sent", "site_replied", "site_positive", "call_scheduled", "called", "proposal_sent", "lost"],
+  siteSent: ["question_sent", "question_replied", "site_sent"],
+  siteSentSilent: ["question_sent", "site_sent"],
+  qReplied: ["question_sent", "question_replied"],
+  qSent: ["question_sent"],
+  fresh: [],
+} satisfies Record<string, Path>
 
-const S: Record<string, Script> = {
-  paid: { steps: ["q", "qr", "s", "sp", "cp", "w"], deal: 1800 },
-  paidCall: { steps: ["s", "sx", "cp", "w"], deal: 1200 },
-  proposal: { steps: ["q", "qn", "s", "sp", "cp"] },
-  positive: { steps: ["q", "qr", "s", "sp"] },
-  callNeg: { steps: ["s", "sx", "cn"] },
-  propNeg: { steps: ["q", "qr", "s", "sp", "cp", "l"] },
-  siteNeg: { steps: ["q", "qr", "s", "sn"] },
-  siteNeg2: { steps: ["s", "sn"] },
-  waitSite: { steps: ["q", "qr", "s"] },
-  waitSite2: { steps: ["q", "qn", "s"] },
-  waitQ: { steps: ["q"] },
-  noReply: { steps: ["s", "sx"] },
-  qNoReply: { steps: ["q", "qn"] },
-  ready: { steps: [], build: "ready" },
-  building: { steps: [], build: "building" },
-  scouted: { steps: [], build: "scouted" },
-  parked: { steps: ["q", "qn", "s", "sx"], parked: true },
-}
-
-// [name, vertical index, city, batch index | null, script]
-const FIRMS: [string, number, string, number | null, keyof typeof S][] = [
-  ["Duna Tennis Academy", 0, "Budapest", 0, "paid"],
-  ["Ace Point Tenisz", 0, "Budapest", 0, "siteNeg"],
-  ["Hegyvidék TC", 0, "Budapest", 0, "proposal"],
-  ["Rózsadomb Tennis Club", 0, "Budapest", 0, "noReply"],
-  ["Balaton Court Club", 0, "Siófok", 0, "callNeg"],
-  ["Tisza Tenisz Egyesület", 0, "Szeged", 1, "positive"],
-  ["Mátra Ace Club", 0, "Gyöngyös", 1, "waitSite"],
-  ["Sopron Tennis Garden", 0, "Sopron", null, "ready"],
-  ["Pécs Clay Courts", 0, "Pécs", null, "building"],
-  ["Padel Pest", 1, "Budapest", 1, "paidCall"],
-  ["Óbuda Padel House", 1, "Budapest", 1, "waitSite2"],
-  ["Vértes Padel", 1, "Tatabánya", 2, "positive"],
-  ["Győr Padel Club", 1, "Győr", 2, "waitQ"],
-  ["Padel Twelve", 1, "Debrecen", 2, "siteNeg2"],
-  ["Night Glass Padel", 1, "Budapest", null, "building"],
-  ["Line Pilates Studio", 2, "Budapest", 1, "propNeg"],
-  ["Core & Calm", 2, "Budapest", 1, "positive"],
-  ["Reformer Room", 2, "Szeged", 2, "waitSite"],
-  ["Pilates Loft", 2, "Debrecen", 2, "qNoReply"],
-  ["Studio Stillness", 2, "Győr", 2, "noReply"],
-  ["The Mat House", 2, "Budapest", null, "ready"],
-  ["Balance Lab", 2, "Veszprém", null, "scouted"],
-  ["Iron District", 3, "Budapest", 1, "siteNeg"],
-  ["Forge Box", 3, "Budapest", 1, "parked"],
-  ["Kettle Collective", 3, "Miskolc", 2, "waitSite2"],
-  ["Northside Strength", 3, "Budapest", null, "building"],
-  ["Barbell Club Eger", 3, "Eger", null, "scouted"],
-  ["Hársas Kúria", 4, "Etyek", 1, "proposal"],
-  ["Tópart Birtok", 4, "Tihany", 2, "waitQ"],
-  ["Szőlőhegy Pajta", 4, "Villány", 2, "noReply"],
-  ["Villa Marienthal", 4, "Szentendre", null, "ready"],
-  ["Malom Rendezvényház", 4, "Tokaj", null, "scouted"],
+// name, vertical, city, path, days since the last change, build
+const FIRMS: [string, number, string, Path, number, "todo" | "building" | "ready"][] = [
+  ["Duna Tennis Academy", 0, "Budapest", P.won, 21, "ready"],
+  ["Ace Point Tenisz", 0, "Budapest", P.siteNo, 24, "ready"],
+  ["Hegyvidék TC", 0, "Budapest", P.proposal, 9, "ready"],
+  ["Rózsadomb Tennis Club", 0, "Budapest", P.siteSentSilent, 3.6, "ready"],
+  ["Balaton Court Club", 0, "Siófok", P.callNo, 15, "ready"],
+  ["Tisza Tenisz Egyesület", 0, "Szeged", P.positive, 0.6, "ready"],
+  ["Mátra Ace Club", 0, "Gyöngyös", P.qSent, 5.4, "building"],
+  ["Sopron Tennis Garden", 0, "Sopron", P.qReplied, 0.4, "ready"],
+  ["Pécs Clay Courts", 0, "Pécs", P.fresh, 1, "todo"],
+  ["Padel Pest", 1, "Budapest", P.wonCold, 12, "ready"],
+  ["Óbuda Padel House", 1, "Budapest", P.siteSent, 1.2, "ready"],
+  ["Vértes Padel", 1, "Tatabánya", P.scheduled, 1.5, "ready"],
+  ["Győr Padel Club", 1, "Győr", P.qSent, 1.5, "todo"],
+  ["Padel Twelve", 1, "Debrecen", P.siteNo, 7, "ready"],
+  ["Night Glass Padel", 1, "Budapest", P.fresh, 0.5, "todo"],
+  ["Line Pilates Studio", 2, "Budapest", P.propNo, 11, "ready"],
+  ["Core & Calm", 2, "Budapest", P.scheduling, 2, "ready"],
+  ["Reformer Room", 2, "Szeged", P.rate, 0.2, "ready"],
+  ["Pilates Loft", 2, "Debrecen", P.qReplied, 1.1, "todo"],
+  ["Studio Stillness", 2, "Győr", P.called, 2, "ready"],
+  ["The Mat House", 2, "Budapest", P.qSent, 4.3, "ready"],
+  ["Balance Lab", 2, "Veszprém", P.fresh, 2, "todo"],
+  ["Iron District", 3, "Budapest", P.siteNo, 16, "ready"],
+  ["Forge Box", 3, "Budapest", P.siteSent, 4.4, "ready"],
+  ["Kettle Collective", 3, "Miskolc", P.siteSentSilent, 1, "ready"],
+  ["Northside Strength", 3, "Budapest", P.qSent, 0.8, "building"],
+  ["Barbell Club Eger", 3, "Eger", P.fresh, 0.3, "todo"],
+  ["Hársas Kúria", 4, "Etyek", P.proposal, 6, "ready"],
+  ["Tópart Birtok", 4, "Tihany", P.qSent, 2.1, "ready"],
+  ["Szőlőhegy Pajta", 4, "Villány", P.siteSentSilent, 6, "ready"],
+  ["Villa Marienthal", 4, "Szentendre", P.fresh, 3, "ready"],
+  ["Malom Rendezvényház", 4, "Tokaj", P.fresh, 4, "todo"],
 ]
 
-const REFS = ["https://www.lagunabeachtennisacademy.com", "https://www.examplestudio.design", "https://www.reference-venue.example"]
-
-const LESSONS: [number | null, string][] = [
-  [0, "Sending the question first roughly doubled replies vs. cold-sending the site. People want to be asked."],
-  [0, "Owners reply at night. Emails sent 19:00–21:00 got answered same evening; morning sends got buried."],
-  [2, "Pilates owners respond to calm, image-led demos. The busier variant got zero replies."],
-  [null, "Opus plan → Sonnet execution was ~40% faster per site with no visible quality drop on 4 of 5 builds."],
-  [4, "Wedding venues forward the link to a partner before replying — expect 5–7 days, don't chase before day 6."],
-  [3, "Gyms are price-anchored against cheap templates. Lead the call with booking/trial conversions, not design."],
+const LESSONS: [number, string][] = [
+  [0, "Asking about bookings first got a reply within hours. The site landed on a warm inbox."],
+  [2, "He wanted to see his own coaches on the homepage. Pull staff photos from Instagram earlier."],
+  [16, "Silent for five days, then said yes within an hour of my phone call. Call earlier."],
+  [27, "Wedding owners forward the link to their partner first. Expect a week, don't chase before day 6."],
 ]
 
 function rng(seed: number) {
@@ -110,153 +96,133 @@ export async function seed(db: DB, now = Date.now()) {
 
   const vIds: string[] = []
   for (const [i, v] of VERTICALS.entries()) {
-    const [row] = await db.insert(schema.verticals).values({ ...v, sortOrder: i, target: 20 }).returning({ id: schema.verticals.id })
+    const [row] = await db
+      .insert(schema.verticals)
+      .values({ name: v.name, hue: v.hue, reference1: v.ref1, reference2: v.ref2, sortOrder: i, target: 20 })
+      .returning({ id: schema.verticals.id })
     vIds.push(row.id)
   }
 
-  const batchDefs = [
-    { name: "Batch 1 · Tennis pilot", notes: "First five, all tennis. Question first, then site.", at: now - 49 * DAY },
-    { name: "Batch 2 · Mixed ten", notes: "Two per vertical to compare response rates.", at: now - 30 * DAY },
-    { name: "Batch 3 · Twelve", notes: "Bigger batch; lighter polish per site.", at: now - 14 * DAY },
-  ]
-  const bIds: string[] = []
-  for (const b of batchDefs) {
-    const [row] = await db
-      .insert(schema.batches)
-      .values({ name: b.name, notes: b.notes, createdAt: new Date(b.at) })
-      .returning({ id: schema.batches.id })
-    bIds.push(row.id)
-  }
+  const variants = ["How do you handle court bookings today?", "What's the busiest time of the week for you?"]
+  const siteIds: string[] = []
 
-  const methods = ["Opus full", "Opus plan → Sonnet", "Opus full", "Opus plan → Sonnet"]
-
-  for (const [name, vi, city, bi, scriptKey] of FIRMS) {
-    const script = S[scriptKey]
+  for (const [name, vi, city, path, age, build] of FIRMS) {
     const slug = name
       .toLowerCase()
       .normalize("NFD")
       .replace(/[̀-ͯ]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "")
-    const start = bi !== null ? batchDefs[bi].at - between(4, 8) * DAY : now - between(1, 9) * DAY
-    const build = script.build ?? "ready"
 
-    const [p] = await db
-      .insert(schema.prospects)
+    // Stage times, worked out backwards from "days since the last change".
+    const last = now - age * DAY
+    const times: number[] = new Array(path.length)
+    let t = last
+    for (let i = path.length - 1; i >= 0; i--) {
+      times[i] = t
+      const prev = path[i - 1]
+      const cur = path[i]
+      const gap =
+        cur === "question_replied" || cur === "site_replied"
+          ? between(0.15, 1.6)
+          : cur === "site_sent" && prev === "question_sent"
+            ? between(4.1, 5)
+            : cur === "called" && prev === "site_sent"
+              ? between(3.1, 4)
+              : between(0.5, 3)
+      t -= gap * DAY
+    }
+    const createdAt = new Date((times[0] ?? last) - between(0.4, 2) * DAY)
+    const has = (s: Stage) => path.includes(s)
+    const finalStage: Stage = path.at(-1) ?? "new"
+    const contactName = ["Nagy Gábor", "Kovács Anna", "Szabó Péter", "Tóth Eszter", ""][Math.floor(rand() * 5)]
+    const callAt = finalStage === "call_scheduled" ? new Date(now + 1.2 * DAY) : has("call_scheduled") ? new Date(times[path.indexOf("call_scheduled")] + 2 * DAY) : null
+    const variant = has("question_sent") ? variants[Math.floor(rand() * variants.length)] : ""
+
+    const [site] = await db
+      .insert(schema.sites)
       .values({
         name,
         verticalId: vIds[vi],
-        batchId: bi !== null ? bIds[bi] : null,
         city,
         oldSiteUrl: `https://${slug}.example`,
         demoUrl: build === "ready" ? `https://${slug}-demo.vercel.app` : "",
-        references: REFS[vi % 2],
-        contactName: "",
+        contactName,
         email: `hello@${slug}.example`,
-        phone: "",
+        stage: finalStage,
+        stageAt: new Date(last),
         build,
-        buildMethod: build === "scouted" ? "" : methods[Math.floor(rand() * methods.length)],
-        parked: !!script.parked,
-        dealValue: script.deal ?? null,
-        createdAt: new Date(start),
-        updatedAt: new Date(start),
+        questionVariant: variant,
+        callAt,
+        callNotes: callAt ? "Walk through the demo, ask about booking pain points, agree next steps." : "",
+        lostReason: finalStage === "lost" ? (has("site_replied") ? "Happy with the current site" : "Not interested after the call") : "",
+        dealValue: finalStage === "won" ? (rand() > 0.5 ? 1800 : 1200) : null,
+        createdAt,
+        updatedAt: new Date(last),
       })
-      .returning({ id: schema.prospects.id })
+      .returning({ id: schema.sites.id })
+    siteIds.push(site.id)
 
-    // Work logs: research → build → qa (→ outreach per contact step)
-    const logs: { kind: "research" | "build" | "qa" | "outreach"; h: number }[] = []
-    if (build !== "scouted") logs.push({ kind: "research", h: between(0.4, 1.1) })
-    if (build !== "scouted") logs.push({ kind: "build", h: build === "building" ? between(0.8, 2) : between(1.6, 4.2) })
-    if (build === "ready") logs.push({ kind: "qa", h: between(0.4, 1.4) })
-    let t = start + HOUR * 18
-    for (const l of logs) {
-      const minutes = Math.round(l.h * 60)
-      await db.insert(schema.workLogs).values({
-        prospectId: p.id,
-        kind: l.kind,
-        minutes,
-        startedAt: new Date(t),
-        endedAt: new Date(t + minutes * 60_000),
+    await db.insert(schema.events).values({ siteId: site.id, stage: "new", at: createdAt })
+    const from = `hello@${slug}.example`
+    const me = "outreach@example.com"
+    const mail = async (direction: "in" | "out", at: number, subject: string, body: string) => {
+      const [m] = await db
+        .insert(schema.messages)
+        .values({ siteId: site.id, direction, fromAddr: direction === "in" ? from : me, toAddr: direction === "in" ? me : from, subject, body, at: new Date(at) })
+        .returning({ id: schema.messages.id })
+      return m.id
+    }
+    const extract = (kind: schema.Extract["kind"], text: string, messageId?: string) =>
+      db.insert(schema.extracts).values({ siteId: site.id, kind, text, messageId: messageId ?? null, createdAt: new Date(last) })
+
+    for (const [i, stage] of path.entries()) {
+      const at = times[i]
+      const next = path[i + 1]
+      await db.insert(schema.events).values({
+        siteId: site.id,
+        stage,
+        at: new Date(at),
+        note: stage === "lost" ? (has("site_replied") ? "Happy with the current site" : "Not interested after the call") : "",
       })
-      t += minutes * 60_000 + between(2, 20) * HOUR
-    }
-
-    // Walk the flow.
-    let stage: NodeKey | null = null
-    let at = bi !== null ? batchDefs[bi].at + between(0, 2) * DAY : t
-    for (const stepId of script.steps) {
-      const tr: Transition | undefined = transitionsFrom(stage).find((x) => x.id === stepId)
-      if (!tr) throw new Error(`Seed: ${name} cannot ${stepId} from ${stage}`)
-      if (at > now - HOUR) at = now - between(2, 20) * HOUR
-      await db.insert(schema.events).values(
-        tr.path.map((node, i) => ({
-          prospectId: p.id,
-          node,
-          at: new Date(at + i),
-          sentiment: tr.asks === "sentiment" && i === tr.path.length - 1 ? 1 : null,
-          minutes: node === "call" || node === "call_proposal" ? Math.round(between(12, 35)) : null,
-          note:
-            node === "site_positive"
-              ? "“Wow, this looks much better than ours. Can we talk this week?”"
-              : node === "site_negative"
-                ? "“Thanks, we're happy with the current site.”"
-                : node === "call_proposal"
-                  ? "Walked through the demo, sent a proposal with two options."
-                  : "",
-        })),
-      )
-      if (tr.path.includes("question_sent") || tr.path.includes("site_sent")) {
-        const minutes = Math.round(between(10, 30))
-        await db.insert(schema.workLogs).values({
-          prospectId: p.id,
-          kind: "outreach",
-          minutes,
-          startedAt: new Date(at - minutes * 60_000),
-          endedAt: new Date(at),
-        })
+      if (stage === "question_sent")
+        await mail("out", at, `Quick question about ${name}`, `Hi,\n\n${variant}\n\nI'm asking because I'm working on a few ideas for clubs in ${city}.\n\nBest regards`)
+      if (stage === "question_replied") {
+        const id = await mail("in", at, `Re: Quick question about ${name}`, "Hi, thanks for asking. Mostly by phone and Facebook messages, to be honest. Why do you ask?")
+        if (rand() > 0.4) await extract("question", "Asked why I'm asking, wants to know what the project is.", id)
       }
-      if (tr.asks === "call") {
-        const minutes = Math.round(between(15, 35))
-        await db.insert(schema.workLogs).values({ prospectId: p.id, kind: "sales", minutes, startedAt: new Date(at - minutes * 60_000), endedAt: new Date(at), note: "Call" })
+      if (stage === "site_sent")
+        await mail("out", at, `I rebuilt the ${name} website`, `Hi,\n\nI put together a new version of your homepage:\nhttps://${slug}-demo.vercel.app\n\nHave a look on your phone too.\n\nBest regards`)
+      if (stage === "site_replied") {
+        const neg = next === "lost" || !next
+        const id = await mail(
+          "in",
+          at,
+          `Re: I rebuilt the ${name} website`,
+          neg ? "Thanks, it looks nice but we're happy with what we have." : "Wow, this looks much better than ours. Can we talk this week?",
+        )
+        if (neg) await extract("objection", "Happy with the current site; doesn't see a need to change.", id)
+        else await extract("interest", "Liked the design a lot; wants to talk this week.", id)
       }
-      if (tr.path.includes("question_replied") || tr.path.includes("site_positive") || tr.path.includes("site_negative")) {
-        await db.insert(schema.messages).values({
-          prospectId: p.id,
-          direction: "in",
-          fromAddr: `hello@${slug}.example`,
-          subject: tr.path.includes("question_replied") ? "Re: A quick question about your website" : "Re: I rebuilt your homepage",
-          body: tr.path.includes("site_negative") ? "Thanks, but we're happy with the current one." : "Sure, happy to take a look — send it over.",
-          at: new Date(at - HOUR),
-          rating: tr.path.includes("site_negative") ? -1 : 1,
-          source: "manual",
-        })
+      if (stage === "call_scheduling") await mail("out", at, `Re: I rebuilt the ${name} website`, "Great to hear! Would Thursday 15:00 or Friday 10:00 work for a quick call?\n\nBest regards")
+      if (stage === "call_scheduled") {
+        const id = await mail("in", at, `Re: I rebuilt the ${name} website`, "Thursday 15:00 works for me. Talk then.")
+        await extract("interest", "Booked a call.", id)
       }
-      stage = tr.path.at(-1)!
-      at += between(1.5, 6) * DAY
+      if (stage === "called" && rand() > 0.5) await extract("objection", "Worried about the price and about who maintains the site afterwards.")
     }
-
-    if (stage) {
-      await db.update(schema.prospects).set({ stage, updatedAt: new Date(Math.min(at, now)) }).where(eq(schema.prospects.id, p.id))
-    }
+    if (finalStage === "won" && rand() > 0.5) await extract("question", "Asked whether they can keep their own domain and email.")
   }
 
-  // An unmatched inbound email to show the inbox triage.
-  await db.insert(schema.messages).values({
-    direction: "in",
-    fromAddr: "info@unknown-sender.example",
-    subject: "Re: Your new website",
-    body: "Hi, who is this from? We might be interested.",
-    at: new Date(now - 5 * HOUR),
-    source: "webhook",
-    externalId: "demo-unmatched-1",
-  })
+  for (const [i, body] of LESSONS)
+    await db.insert(schema.lessons).values({ siteId: siteIds[i], body, createdAt: new Date(now - between(1, 20) * DAY) })
 
-  for (const [vi, body] of LESSONS) {
-    await db.insert(schema.notes).values({
-      verticalId: vi !== null ? vIds[vi] : null,
-      body,
-      isLesson: true,
-      createdAt: new Date(now - between(1, 40) * DAY),
-    })
-  }
+  await db.insert(schema.tasks).values([
+    { siteId: siteIds[2], title: "Follow up on the proposal", note: "Sent it last week; ask if they've had a chance to look.", dueAt: new Date(now - 2 * HOUR), source: "chatgpt" },
+    { title: "Pick the outreach questions for the padel batch", dueAt: new Date(now + 2 * DAY), source: "manual" },
+  ])
+
+  const put = (key: string, value: string) => db.insert(schema.settings).values({ key, value })
+  await put("lastSyncAt", String(now - 12 * 60_000))
+  await put("lastSyncNote", "Checked the mailbox: 2 new replies.")
 }
