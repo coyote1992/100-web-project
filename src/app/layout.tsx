@@ -17,7 +17,23 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const world = await getWorld()
+  let world: Awaited<ReturnType<typeof getWorld>>
+  try {
+    world = await getWorld()
+  } catch (e) {
+    // Show the real reason instead of a blank "application error" or an endless spinner.
+    const raw = e instanceof Error ? `${e.message}${e.cause instanceof Error ? ` (${e.cause.message})` : ""}` : String(e)
+    const reason = raw.replace(/:\/\/[^@\s]*@/g, "://***@")
+    return (
+      <html lang="en">
+        <body style={{ font: "15px/1.6 system-ui, sans-serif", maxWidth: 560, margin: "12vh auto", padding: 20 }}>
+          <h1 style={{ fontWeight: 500 }}>Hundred can't reach its database</h1>
+          <p>Check that <code>DATABASE_URL</code> is the Supabase <b>Transaction pooler</b> string (host ends in <code>pooler.supabase.com</code>, port <code>6543</code>), that the password is filled in without square brackets, and that the project isn't paused. Then redeploy.</p>
+          <pre style={{ whiteSpace: "pre-wrap", background: "#f3f0ea", padding: 12, borderRadius: 8, fontSize: 13 }}>{reason}</pre>
+        </body>
+      </html>
+    )
+  }
   const rows = buildRows(world)
   const due = taskItems(rows, world.tasks).filter((i) => i.state === "due").length
 
