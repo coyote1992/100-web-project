@@ -14,5 +14,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/v1|_next/static|_next/image|favicon.ico).*)"],
+  // The plugin endpoints sign callers in themselves (OAuth or bearer token), so the basic-auth gate skips them.
+  matcher: ["/((?!api/v1|mcp|oauth|\\.well-known|_next/static|_next/image|favicon.ico).*)"],
 }

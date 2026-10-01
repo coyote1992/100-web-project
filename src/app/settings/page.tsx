@@ -1,12 +1,13 @@
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { getWorld } from "@/lib/data"
-import { instructions } from "@/lib/chatgpt"
+import { guide } from "@/lib/guide"
 import { dbHost, dbKind } from "@/db/config"
 import { cn } from "@/lib/utils"
 import { ago } from "@/lib/format"
 import { Page, PageHeader } from "@/components/app/page"
 import { CopyBlock } from "@/components/app/copy-block"
+import { Button } from "@/components/ui/button"
 import { DataActions } from "./settings-client"
 
 export const metadata: Metadata = { title: "Settings" }
@@ -35,7 +36,7 @@ function Status({ on, label }: { on: boolean; label: string }) {
 export default async function SettingsPage() {
   const [world, h] = await Promise.all([getWorld(), headers()])
   const base = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`
-  const token = !!process.env.API_TOKEN
+  const signIn = !!process.env.API_TOKEN && !!process.env.APP_PASSWORD
   const pre = "overflow-x-auto rounded-lg border bg-muted/50 p-3 font-mono text-[12px] leading-relaxed"
 
   return (
@@ -45,38 +46,72 @@ export default async function SettingsPage() {
       <Block
         id="chatgpt"
         title="Connect ChatGPT"
-        description="ChatGPT is the hands of this app: it adds firms, syncs your Gmail, extracts what people say and moves sites along. It talks to a small token-protected API."
+        description="Hundred is a ChatGPT plugin. Pick it in a chat or Work session, say what you want in plain language, and it happens in the app."
       >
         <div className="grid gap-6 text-sm">
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <Status on={token} label={token ? "API_TOKEN is set" : "API_TOKEN is not set: the API is off"} />
+            <Status on={signIn} label={signIn ? "Sign-in is set up" : "Set APP_PASSWORD and API_TOKEN to turn sign-in on"} />
             <Status on={!!world.lastSyncAt} label={world.lastSyncAt ? `Last mailbox sweep ${ago(world.lastSyncAt)}` : "No mailbox sweep yet"} />
           </div>
+
+          <div className="grid gap-1.5">
+            <p className="font-medium">Your plugin address</p>
+            <pre className={pre}>{base}/mcp</pre>
+          </div>
+
           <ol className="grid list-decimal gap-3 pl-5 text-muted-foreground marker:text-foreground/50">
             <li>
-              Choose a long random string and set it as <code className="text-foreground">API_TOKEN</code> in the app&rsquo;s environment (Vercel → Settings → Environment Variables), then redeploy.
+              On the server set <code className="text-foreground">APP_PASSWORD</code> (the password you&rsquo;ll type to approve ChatGPT) and <code className="text-foreground">API_TOKEN</code> (any long random string; it signs the access tokens). Redeploy.
             </li>
             <li>
-              In ChatGPT, create a custom GPT (or a project) and add an <span className="text-foreground">Action</span>. Import the schema from the URL below. For authentication choose{" "}
-              <span className="text-foreground">API key → Bearer</span> and paste the token.
+              In ChatGPT: <span className="text-foreground">Settings → Security and login → Developer mode</span> on.
             </li>
-            <li>Paste the instructions below into the GPT&rsquo;s instructions. They tell it the flow and the 30-minute mailbox sweep.</li>
-            <li>Give it your Gmail (the connector for the outreach inbox) and schedule the sweep as a recurring task, every 30 minutes.</li>
+            <li>
+              Go to <span className="text-foreground">Plugins → +</span>, name it Hundred, paste the address above, choose <span className="text-foreground">OAuth</span>, and create it. A sign-in page opens: enter your password.
+            </li>
+            <li>
+              Open your personal plugins and install Hundred. In any chat or Work session, pick it from the tools menu (or <span className="text-foreground">@</span> it) and just ask.
+            </li>
+            <li>
+              For the mailbox sweep, create a recurring task in ChatGPT: <span className="text-foreground">&ldquo;Using Hundred, run the mailbox sweep&rdquo;</span> every 30 minutes, with your Gmail connected.
+            </li>
           </ol>
+
           <div className="grid gap-1.5">
-            <p className="font-medium">Schema URL</p>
-            <pre className={pre}>{base}/api/v1/openapi.json</pre>
-            <p className="text-xs text-muted-foreground">Public on purpose: it describes the API but grants nothing without the token.</p>
+            <p className="font-medium">Things to try</p>
+            <ul className="grid gap-1 text-muted-foreground">
+              {["What needs me today?", "Add these 20 firms to Padel clubs: …", "Run the mailbox sweep.", "How is Core & Calm doing?", "Draft the site email for the firm that just replied.", "Change the quiet wait before sending the site to 5 days."].map((x) => (
+                <li key={x} className="before:mr-2 before:text-foreground/40 before:content-['›']">
+                  {x}
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="grid gap-1.5">
-            <p className="font-medium">Instructions for ChatGPT</p>
-            <CopyBlock text={instructions(base)} label="Instructions" maxHeight="20rem" />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" nativeButton={false} render={<a href="/api/plugin.zip" />}>
+              Download the plugin package (.zip)
+            </Button>
+            <span className="text-muted-foreground">Skills and connection, for Codex and for publishing later. ChatGPT itself only needs the address above.</span>
           </div>
-          <div className="grid gap-1.5">
-            <p className="font-medium">Try it</p>
-            <pre className={pre}>{`curl ${base}/api/v1/tasks \\
-  -H "Authorization: Bearer $API_TOKEN"`}</pre>
-          </div>
+
+          <details className="group rounded-lg border bg-muted/30 px-3 py-2.5">
+            <summary className="cursor-pointer text-muted-foreground group-open:text-foreground">What the assistant is told (the operating guide)</summary>
+            <div className="mt-3">
+              <CopyBlock text={guide()} label="Guide" maxHeight="18rem" />
+            </div>
+          </details>
+
+          <details className="group rounded-lg border bg-muted/30 px-3 py-2.5">
+            <summary className="cursor-pointer text-muted-foreground group-open:text-foreground">Other ways in: REST API and Custom GPT action</summary>
+            <div className="mt-3 grid gap-3 text-muted-foreground">
+              <p>
+                The same operations are available as a REST API at <code className="text-foreground">{base}/api/v1</code> using <code className="text-foreground">API_TOKEN</code> as a bearer token. The OpenAPI schema is at:
+              </p>
+              <pre className={pre}>{base}/api/v1/openapi.json</pre>
+              <pre className={pre}>{`curl ${base}/api/v1/tasks \\\n  -H "Authorization: Bearer $API_TOKEN"`}</pre>
+            </div>
+          </details>
         </div>
       </Block>
 

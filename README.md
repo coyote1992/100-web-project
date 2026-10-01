@@ -5,14 +5,34 @@ A project-management view of the speculative website experiment: 5 verticals, 20
 ## How it fits together
 
 ```
-Gmail (outreach inbox) ⇄ ChatGPT ⇄ /api/v1 ⇄ Hundred (Next.js) ⇄ Supabase (Postgres)
+You, in a ChatGPT chat or Work session
+        │  pick the Hundred plugin, type what you want
+        ▼
+  Hundred plugin  ── MCP over HTTPS, OAuth sign-in ──►  /mcp  (this app)  ⇄  Supabase (Postgres)
+        ▲
+Gmail (outreach inbox), read by ChatGPT during the 30-minute sweep
 ```
 
 - **Verticals** (you): name, plus the two reference sites, pasted by hand.
-- **Sites** (ChatGPT): one page per firm, created through the API. Each page has the email conversation (read-only), what ChatGPT extracted from it (call time, objections, questions, interest), the next step, a **copy-ready build prompt** for Claude Code, and a place for your lessons.
-- **Tasks**: next steps appear on their own from each site's stage and the clock (send the site after N quiet days, call after M quiet days, rate a reply, send the scheduling email, call on the booked day, send the proposal). Tick one and the site moves on. You can add your own tasks too.
-- **Templates**: the build prompt, the send-the-site email and the call-scheduling email, plus the two timing values. ChatGPT reads them through the API.
+- **Sites** (the plugin adds them): one page per firm. Each page has the email conversation (read-only), what ChatGPT extracted from it (call time, objections, questions, interest), the next step, a **copy-ready build prompt** for Claude Code, and a place for your lessons.
+- **Tasks**: next steps appear on their own from each site's stage and the clock. Tick one and the site moves on. You can add your own tasks too.
+- **Templates**: the build prompt, the send-the-site email, the call-scheduling email, and the two timing values. The plugin reads them when it drafts an email.
 - **Insights**: funnel, reply and positive rates with the sample size next to them, does asking first help, reply timing, pace, by vertical, by opening question, where sites are lost, and what people objected to.
+
+## The plugin
+
+Hundred exposes an **MCP server at `/mcp`** (Streamable HTTP) with 20 tools: add firms, list/get/update/delete sites, log emails, record extracted notes, tasks, verticals, templates, overview, mailbox-sync stamp, and `get_guide` (the operating manual). Anything you can do in the UI the plugin can do, plus the parts only ChatGPT can do (reading Gmail).
+
+**Sign-in** is OAuth 2.1 (authorization code + PKCE, dynamic client registration, refresh tokens), built into the app: `/.well-known/oauth-*`, `/oauth/authorize`, `/oauth/token`, `/oauth/register`. You approve ChatGPT once with `APP_PASSWORD`. Changing `API_TOKEN` signs everything out.
+
+**Connect it** (also shown in Settings → Connect ChatGPT):
+1. Set `APP_PASSWORD` and `API_TOKEN` on the server.
+2. ChatGPT → Settings → Security and login → Developer mode on.
+3. Plugins → + → paste `https://<your-app>/mcp`, choose OAuth, sign in.
+4. Install it from your personal plugins, then pick it in any chat or Work session and ask.
+5. Add a recurring ChatGPT task: "Using Hundred, run the mailbox sweep" every 30 minutes.
+
+Settings also offers a **plugin package (.zip)**: `.codex-plugin/plugin.json`, `.mcp.json`, and two skills (`hundred`, `mailbox-sweep`) in OpenAI's plugin layout, with your `/mcp` address filled in. ChatGPT itself only needs the address; the package is for Codex and for publishing later. A REST API (`/api/v1`, bearer `API_TOKEN`, OpenAPI at `/api/v1/openapi.json`) exposes the same operations for scripts.
 
 ## The flow
 
@@ -31,26 +51,10 @@ Without `DATABASE_URL` it runs on a local Postgres in `./data/pglite`, with the 
 ## Deploy (Vercel + Supabase)
 
 1. **Supabase.** Create a project; copy the connection string (Project settings → Database → Connection string, the pooler one) into `DATABASE_URL` on Vercel. Tables are created on first load. The Vercel × Supabase integration works too (`POSTGRES_URL` is read as well).
-2. **API token.** Set `API_TOKEN` to a long random string.
-3. **Password.** Set `APP_PASSWORD` so the app isn't public (browser sign-in, any username). The API uses the token instead.
-4. Redeploy, then follow **Settings → Connect ChatGPT**.
+2. **Secrets.** `APP_PASSWORD` protects the app and approves the plugin sign-in; `API_TOKEN` (long random string) signs the access tokens and works as a bearer token for the REST API.
+3. Redeploy, then follow **Settings → Connect ChatGPT**.
 
 Until `DATABASE_URL` is set, Vercel runs on temporary storage and the app shows a banner saying so.
-
-## The API (`/api/v1`, bearer token)
-
-Machine-readable spec: `/api/v1/openapi.json` (import it as a Custom GPT action). The operating manual for ChatGPT is on the Settings page and at `/api/v1/instructions`.
-
-| | |
-|---|---|
-| `GET /sites` · `POST /sites` | list (filter by stage, vertical, email, `needs=attention`) · add one or many firms |
-| `GET /sites/{id}` | everything on a site, plus ready-filled drafts of the build prompt and both emails |
-| `PATCH /sites/{id}` | stage (optionally backdated), call time and notes, demo URL, contact details… |
-| `POST /messages` | log emails, in or out. Matches the site by id, address or domain, dedupes by `externalId`, moves the stage on replies and on `sentKind` |
-| `POST /sites/{id}/extracts` | objections, questions, interest |
-| `GET /tasks` · `POST /tasks` · `PATCH /tasks/{id}` | what needs you, and tasks of your own |
-| `GET /templates` · `PUT /templates` | templates and timing |
-| `POST /sync` | stamp the end of a mailbox sweep, shown in the sidebar |
 
 ## Where things live
 
@@ -59,5 +63,10 @@ Machine-readable spec: `/api/v1/openapi.json` (import it as a Custom GPT action)
 | `src/lib/flow.ts` | Stages, the actions from each stage, and the next-step rules |
 | `src/lib/metrics.ts` | Every number on the dashboards |
 | `src/lib/domain.ts` | All writes, shared by the UI and the API |
-| `src/lib/chatgpt.ts` | ChatGPT instructions and the OpenAPI schema |
+| `src/lib/tools.ts` | The plugin's MCP tools |
+| `src/app/mcp/route.ts` | The MCP endpoint (JSON-RPC over HTTP) |
+| `src/lib/oauth.ts`, `src/app/oauth/*` | OAuth sign-in for the plugin |
+| `src/lib/guide.ts` | The operating guide the assistant reads |
+| `src/lib/plugin.ts` | The plugin package generator |
+| `src/lib/chatgpt.ts` | OpenAPI schema for the REST API |
 | `src/db/schema.ts` | Tables. After changing them run `npm run db:generate` |

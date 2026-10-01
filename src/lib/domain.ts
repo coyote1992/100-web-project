@@ -68,7 +68,13 @@ export async function createSites(inputs: SiteInput[]) {
   const existing = await db.select().from(sites)
   const results: { name: string; id?: string; created: boolean; note?: string }[] = []
   for (const input of inputs) {
-    const v = await findVertical(input.vertical)
+    let v
+    try {
+      v = await findVertical(input.vertical)
+    } catch (e) {
+      results.push({ name: input.name, created: false, note: e instanceof Error ? e.message : "Unknown vertical." })
+      continue
+    }
     const dupe = existing.find(
       (s) =>
         s.verticalId === v.id &&
