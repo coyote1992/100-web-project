@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { getWorld } from "@/lib/data"
 import { guide } from "@/lib/guide"
 import { dbHost, dbKind } from "@/db/config"
+import { SETUP_SQL } from "@/db/setup-sql"
 import { cn } from "@/lib/utils"
 import { ago } from "@/lib/format"
 import { Page, PageHeader } from "@/components/app/page"
@@ -115,17 +116,23 @@ export default async function SettingsPage() {
         </div>
       </Block>
 
-      <Block title="Database" description="Everything lives in Postgres. Supabase is the intended home.">
+      <Block title="Database" description="Everything lives in Supabase (Postgres), reached over HTTPS.">
         <div className="grid gap-4 text-sm">
           <Status
-            on={dbKind === "postgres"}
-            label={dbKind === "postgres" ? `Postgres: ${dbHost()}` : dbKind === "local" ? "Local development database (./data/pglite)" : "Temporary storage: connect Supabase to keep data"}
+            on={dbKind === "supabase"}
+            label={dbKind === "supabase" ? `Supabase: ${dbHost()}` : dbKind === "local" ? "Local development database (./data/pglite)" : "Temporary storage: connect Supabase to keep data"}
           />
-          {dbKind !== "postgres" && (
+          {dbKind !== "supabase" && (
             <p className="text-muted-foreground">
-              Set <code className="text-foreground">DATABASE_URL</code> to your Supabase connection string (Project settings → Database → Connection string, the pooler one) and redeploy. Tables are created on first load.
+              Set <code className="text-foreground">SUPABASE_URL</code> and <code className="text-foreground">SUPABASE_SERVICE_ROLE_KEY</code>, run the setup SQL once, and redeploy.
             </p>
           )}
+          <details className="group rounded-lg border bg-muted/30 px-3 py-2.5">
+            <summary className="cursor-pointer text-muted-foreground group-open:text-foreground">Setup SQL (paste into Supabase → SQL Editor, once)</summary>
+            <div className="mt-3">
+              <CopyBlock text={SETUP_SQL} label="Setup SQL" maxHeight="16rem" />
+            </div>
+          </details>
         </div>
       </Block>
 

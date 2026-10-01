@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/app/sidebar"
 import { getWorld } from "@/lib/data"
 import { buildRows, taskItems } from "@/lib/metrics"
 import { dbKind } from "@/db/config"
+import { SETUP_SQL } from "@/db/setup-sql"
 import "./globals.css"
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "latin-ext"] })
@@ -21,17 +22,30 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   try {
     world = await Promise.race([
       getWorld(),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("The database accepted the connection but its answers never arrived (30 s).")), 30_000)),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("The database didn't answer in 30 s.")), 30_000)),
     ])
   } catch (e) {
     // Show the real reason instead of a blank "application error" or an endless spinner.
-    const raw = e instanceof Error ? `${e.message}${e.cause instanceof Error ? ` (${e.cause.message})` : ""}` : String(e)
-    const reason = raw.replace(/:\/\/[^@\s]*@/g, "://***@")
+    // The drivers wrap the useful message ("Invalid API key", "function not found") as the cause of a long SQL error.
+    const root = (x: unknown): string => (x instanceof Error && x.cause ? root(x.cause) : x instanceof Error ? x.message : String(x))
+    const reason = root(e).replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+|sb_secret_\w+/g, "***")
+    const needsSetup = /hundred_exec|does not exist|PGRST20\d|schema cache/i.test(reason)
     return (
       <html lang="en">
-        <body style={{ font: "15px/1.6 system-ui, sans-serif", maxWidth: 560, margin: "12vh auto", padding: 20 }}>
-          <h1 style={{ fontWeight: 500 }}>Hundred can&apos;t reach its database</h1>
-          <p>Check that <code>DATABASE_URL</code> is the Supabase <b>Transaction pooler</b> string (host ends in <code>pooler.supabase.com</code>, port <code>6543</code>), that the password is filled in without square brackets, and that the project isn&apos;t paused. Then redeploy.</p>
+        <body style={{ font: "15px/1.6 system-ui, sans-serif", maxWidth: 640, margin: "8vh auto", padding: 20 }}>
+          <h1 style={{ fontWeight: 500 }}>{needsSetup ? "Hundred needs its database set up" : "Hundred can\u2019t reach its database"}</h1>
+          {needsSetup ? (
+            <>
+              <p>
+                Open Supabase → <b>SQL Editor</b> → <b>New query</b>, paste everything below, and click <b>Run</b>. Then reload this page.
+              </p>
+              <textarea readOnly rows={10} defaultValue={SETUP_SQL} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }} />
+            </>
+          ) : (
+            <p>
+              Check that <code>SUPABASE_URL</code> is your project URL (<code>https://….supabase.co</code>) and <code>SUPABASE_SERVICE_ROLE_KEY</code> is the <b>service_role</b> (or secret) key, not the anon key, then redeploy.
+            </p>
+          )}
           <pre style={{ whiteSpace: "pre-wrap", background: "#f3f0ea", padding: 12, borderRadius: 8, fontSize: 13 }}>{reason}</pre>
         </body>
       </html>
@@ -60,7 +74,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <div role="status" className="border-b border-move-line bg-move-soft px-4 py-2.5 text-sm sm:px-8">
                   <strong className="font-medium">Temporary storage.</strong>{" "}
                   <span className="text-muted-foreground">
-                    No database is connected, so everything disappears when Vercel restarts the app. Set <code>DATABASE_URL</code> to your Supabase connection string and redeploy.
+                    No database is connected, so everything disappears when Vercel restarts the app. Set <code>SUPABASE_URL</code> and <code>SUPABASE_SERVICE_ROLE_KEY</code> and redeploy.
                   </span>
                 </div>
               )}

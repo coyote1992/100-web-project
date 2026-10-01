@@ -2,32 +2,17 @@ import "server-only"
 import { cache } from "react"
 import { connection } from "next/server"
 import { asc, desc } from "drizzle-orm"
-import { getDb, resetDb, schema } from "@/db"
+import { getDb, schema } from "@/db"
 import type { World } from "./metrics"
 import { DEFAULT_TEMPLATES, type Templates } from "./templates"
 
-function within<T>(p: Promise<T>, ms: number) {
-  return Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`No answer from the database after ${ms / 1000}s`)), ms))])
-}
-
-/** A serverless connection can go stale while the app is frozen. If it stops answering, reconnect once and retry. */
-async function load(): Promise<World> {
-  try {
-    return await within(read(), 8000)
-  } catch {
-    await resetDb()
-    return within(read(), 12000)
-  }
-}
-
 export const getWorld = cache(async function getWorld(): Promise<World> {
   await connection()
-  return load()
+  return read()
 })
 
 async function read(): Promise<World> {
   const db = await getDb()
-  // One query at a time: a single pooled connection stalls when eight are sent at once.
   const verticals = await db.select().from(schema.verticals).orderBy(asc(schema.verticals.sortOrder), asc(schema.verticals.createdAt))
   const sites = await db.select().from(schema.sites).orderBy(desc(schema.sites.updatedAt))
   const events = await db.select().from(schema.events).orderBy(asc(schema.events.at))

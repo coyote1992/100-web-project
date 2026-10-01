@@ -1,8 +1,8 @@
 import { defineConfig } from "drizzle-kit"
 
+// Only used to generate migration files (npm run db:generate); the app never connects with this.
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
-  dbCredentials: { url: process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "postgres://localhost/hundred" },
 })

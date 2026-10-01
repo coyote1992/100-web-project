@@ -46,15 +46,23 @@ npm run db:seed     # optional: fictional demo data (or "Load demo data" in Sett
 npm run dev
 ```
 
-Without `DATABASE_URL` it runs on a local Postgres in `./data/pglite`, with the same SQL as Supabase.
+Without Supabase keys it runs on a local Postgres in `./data/pglite`, with the same SQL.
 
 ## Deploy (Vercel + Supabase)
 
-1. **Supabase.** Create a project; copy the connection string (Project settings → Database → Connection string, the pooler one) into `DATABASE_URL` on Vercel. Tables are created on first load. The Vercel × Supabase integration works too (`POSTGRES_URL` is read as well).
-2. **Secrets.** `APP_PASSWORD` protects the app and approves the plugin sign-in; `API_TOKEN` (long random string) signs the access tokens and works as a bearer token for the REST API.
-3. Redeploy, then follow **Settings → Connect ChatGPT**.
+The app talks to Supabase over HTTPS (its REST API), not a direct database connection, so there is no connection pool to run out of or freeze.
 
-Until `DATABASE_URL` is set, Vercel runs on temporary storage and the app shows a banner saying so.
+1. **Supabase → SQL Editor → New query:** paste the contents of `supabase/setup.sql` (also in Settings → Database, and shown by the app if it's missing) and run it once. It creates the tables, locks them with row-level security, and adds the `hundred_exec` function that only the service key can call.
+2. **Vercel → Settings → Environment Variables** (Production, Secret):
+   - `SUPABASE_URL`: your project URL, `https://xxxx.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY`: the service_role (or secret) key. It bypasses all security, so it must never reach the browser.
+   - `APP_PASSWORD`: protects the app and approves the plugin sign-in.
+   - `API_TOKEN`: any long random string; signs the plugin's access tokens.
+3. Redeploy, open `/api/health` (it checks each step), then follow **Settings → Connect ChatGPT**.
+
+`vercel.json` pins functions to Paris (`cdg1`), next to a Supabase project in eu-west-3. Change it if yours is elsewhere.
+
+After changing `src/db/schema.ts` run `npm run db:generate`, then run the new `supabase/setup.sql` again in Supabase.
 
 ## Where things live
 
@@ -70,3 +78,4 @@ Until `DATABASE_URL` is set, Vercel runs on temporary storage and the app shows 
 | `src/lib/plugin.ts` | The plugin package generator |
 | `src/lib/chatgpt.ts` | OpenAPI schema for the REST API |
 | `src/db/schema.ts` | Tables. After changing them run `npm run db:generate` |
+| `supabase/setup.sql` | One-time database setup (generated) |

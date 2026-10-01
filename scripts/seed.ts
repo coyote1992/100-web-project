@@ -1,6 +1,6 @@
 /**
  * npm run db:seed: wipes the connected database and loads the demo data.
- * Uses DATABASE_URL / POSTGRES_URL when set, otherwise the local ./data/pglite database.
+ * Uses SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY when set, otherwise the local ./data/pglite database.
  */
 import { getDb } from "../src/db"
 import { seed } from "../src/db/seed"
