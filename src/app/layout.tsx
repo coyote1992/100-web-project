@@ -21,7 +21,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   try {
     world = await Promise.race([
       getWorld(),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("The database accepted the connection but its answers never arrived (20 s).")), 20_000)),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("The database accepted the connection but its answers never arrived (30 s).")), 20_000)),
     ])
   } catch (e) {
     // Show the real reason instead of a blank "application error" or an endless spinner.
