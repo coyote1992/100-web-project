@@ -15,7 +15,7 @@ async function connect(): Promise<DB> {
     const { migrate } = await import("drizzle-orm/postgres-js/migrator")
     const local = /localhost|127\.0\.0\.1/.test(databaseUrl)
     // prepare:false keeps Supabase's transaction pooler happy.
-    const client = postgres(databaseUrl, { prepare: false, ssl: local ? false : "require", max: 5, connect_timeout: 10 })
+    const client = postgres(databaseUrl, { prepare: false, ssl: local ? false : "require", max: process.env.VERCEL ? 1 : 5, idle_timeout: 20, connect_timeout: 10 })
     const db = drizzle(client, { schema })
     await migrate(db, { migrationsFolder })
     return db
