@@ -9,16 +9,15 @@ import { DEFAULT_TEMPLATES, type Templates } from "./templates"
 export const getWorld = cache(async function getWorld(): Promise<World> {
   await connection()
   const db = await getDb()
-  const [verticals, sites, events, messages, extracts, lessons, tasks, settings] = await Promise.all([
-    db.select().from(schema.verticals).orderBy(asc(schema.verticals.sortOrder), asc(schema.verticals.createdAt)),
-    db.select().from(schema.sites).orderBy(desc(schema.sites.updatedAt)),
-    db.select().from(schema.events).orderBy(asc(schema.events.at)),
-    db.select().from(schema.messages).orderBy(asc(schema.messages.at)),
-    db.select().from(schema.extracts).orderBy(desc(schema.extracts.createdAt)),
-    db.select().from(schema.lessons).orderBy(desc(schema.lessons.createdAt)),
-    db.select().from(schema.tasks).orderBy(asc(schema.tasks.createdAt)),
-    db.select().from(schema.settings),
-  ])
+  // One query at a time: a single pooled connection stalls when eight are sent at once.
+  const verticals = await db.select().from(schema.verticals).orderBy(asc(schema.verticals.sortOrder), asc(schema.verticals.createdAt))
+  const sites = await db.select().from(schema.sites).orderBy(desc(schema.sites.updatedAt))
+  const events = await db.select().from(schema.events).orderBy(asc(schema.events.at))
+  const messages = await db.select().from(schema.messages).orderBy(asc(schema.messages.at))
+  const extracts = await db.select().from(schema.extracts).orderBy(desc(schema.extracts.createdAt))
+  const lessons = await db.select().from(schema.lessons).orderBy(desc(schema.lessons.createdAt))
+  const tasks = await db.select().from(schema.tasks).orderBy(asc(schema.tasks.createdAt))
+  const settings = await db.select().from(schema.settings)
   const map = new Map(settings.map((s) => [s.key, s.value]))
   const num = (k: string, d: number) => {
     const n = Number(map.get(k))
