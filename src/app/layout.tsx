@@ -19,7 +19,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   let world: Awaited<ReturnType<typeof getWorld>>
   try {
-    world = await getWorld()
+    world = await Promise.race([
+      getWorld(),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("The database accepted the connection but its answers never arrived (20 s).")), 20_000)),
+    ])
   } catch (e) {
     // Show the real reason instead of a blank "application error" or an endless spinner.
     const raw = e instanceof Error ? `${e.message}${e.cause instanceof Error ? ` (${e.cause.message})` : ""}` : String(e)

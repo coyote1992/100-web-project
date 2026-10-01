@@ -36,5 +36,17 @@ export async function GET() {
     )
   }
   steps.push(await step("2. connect and create/update the tables", 20_000, async () => void (await getDb())))
+  if (steps.at(-1)?.ok) {
+    const db = await getDb()
+    const { sql: q } = await import("drizzle-orm")
+    for (const t of ["verticals", "sites", "events", "messages", "extracts", "lessons", "tasks", "settings"]) {
+      steps.push(await step(`3. read table ${t}`, 8_000, async () => (await db.execute(q.raw(`select count(*)::int as n from "${t}"`)))))
+    }
+    steps.push(await step("4. read all tables at once (what a page does)", 15_000, async () => {
+      const { getWorld } = await import("@/lib/data")
+      const w = await getWorld()
+      return { verticals: w.verticals.length, sites: w.sites.length }
+    }))
+  }
   return Response.json({ ok: steps.every((s) => s.ok), steps }, { headers: { "cache-control": "no-store" } })
 }
