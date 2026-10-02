@@ -24,7 +24,7 @@ function validate(p: ReturnType<typeof read>) {
   if (!oauthEnabled()) return "The server has no API_TOKEN or APP_PASSWORD set, so it can't sign anyone in."
   if (p.response_type !== "code") return "Only the authorization code flow is supported."
   if (!p.client_id) return "Missing client_id."
-  if (!redirectAllowed(p.redirect_uri)) return "That redirect address isn't allowed. Only ChatGPT and local clients can connect."
+  if (!redirectAllowed(p.redirect_uri)) return "That redirect address isn't allowed. Only ChatGPT, Claude and local clients can connect."
   if (!p.code_challenge || p.method !== "S256") return "PKCE with S256 is required."
   return null
 }

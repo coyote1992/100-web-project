@@ -61,6 +61,7 @@ const REDIRECTS = [
   /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/connector_platform_oauth_redirect$/,
   /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/connector\/oauth\/[\w-]+$/,
   /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/aip\/[\w-]+\/oauth\/callback$/,
+  /^https:\/\/(claude\.ai|claude\.com)\/api\/(mcp\/auth_callback|organizations\/[\w-]+\/mcp\/oauth\/callback)$/,
   /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/[\w\-./]*)?$/,
 ]
 export const redirectAllowed = (uri: string) => REDIRECTS.some((r) => r.test(uri))
