@@ -11,7 +11,8 @@ import { HundredBoard, BoardLegend } from "@/components/app/hundred-board"
 import { ActivityList } from "@/components/app/activity-list"
 import { FunnelChart } from "@/components/app/funnel"
 import { Onboarding } from "@/components/app/onboarding"
-import { TaskList } from "@/components/app/task-list"
+import { GroupedTasks } from "@/components/app/task-list"
+import { AddTask } from "@/components/app/add-task"
 import { VerticalMark } from "@/components/app/status"
 
 export default async function Overview() {
@@ -26,7 +27,9 @@ export default async function Overview() {
   const rows = buildRows(world)
   const timing = timingOf(world.templates)
   const r = rates(rows, timing)
-  const due = toViews(taskItems(rows, world.tasks).filter((i) => i.state === "due"))
+  const all = taskItems(rows, world.tasks)
+  const due = toViews(all.filter((i) => i.state === "due"))
+  const upcoming = toViews(all.filter((i) => i.state === "upcoming"))
   const names = new Map(rows.map((x) => [x.id, x.name]))
   const feed = activity(world, { limit: 9 })
   const hours = (h: number | null) => (h === null ? "—" : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} days`)
@@ -60,16 +63,23 @@ export default async function Overview() {
       />
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <Section title="Needs you" aside={<Link href="/tasks" className="hover:text-foreground">{due.length ? `${due.length} due · all tasks` : "All tasks"}</Link>}>
-          <Panel className="overflow-hidden">
-            <TaskList items={due.slice(0, 6)} empty="All caught up. Nothing is waiting on you." />
-            {due.length > 6 && (
-              <Link href="/tasks" className="block border-t px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground">
-                {due.length - 6} more…
-              </Link>
-            )}
-          </Panel>
-        </Section>
+        <div className="grid min-w-0 content-start gap-8">
+          <Section title="Needs you" aside={due.length ? `${due.length} due` : undefined}>
+            <GroupedTasks items={due} empty="All caught up. Nothing is waiting on you." />
+          </Section>
+
+          <AddTask sites={[...rows].sort((a, b) => a.name.localeCompare(b.name)).map((r) => ({ id: r.id, name: r.name }))} />
+
+          {upcoming.length > 0 && (
+            <details className="group">
+              <summary className="mb-3 cursor-pointer list-none text-[0.95rem] font-semibold tracking-tight marker:hidden">
+                <span className="mr-1.5 inline-block text-muted-foreground transition-transform duration-150 group-open:rotate-90">›</span>
+                Coming up <span className="num ml-1 text-sm font-normal text-muted-foreground">{upcoming.length}</span>
+              </summary>
+              <GroupedTasks items={upcoming} />
+            </details>
+          )}
+        </div>
 
         <Section title="The hundred" aside={<Link href="/verticals" className="hover:text-foreground">Verticals</Link>}>
           <Panel className="p-4 sm:p-5">

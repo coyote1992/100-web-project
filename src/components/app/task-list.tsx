@@ -22,7 +22,40 @@ function dueLabel(due: string | null, now: number) {
   return hrs < 24 ? `in ${hrs}h` : days === 1 ? "tomorrow" : `in ${days} days`
 }
 
-export function TaskList({ items, empty, showActions = true }: { items: TaskView[]; empty?: string; showActions?: boolean }) {
+const GROUPS: { key: TaskView["group"]; label: string; hint: string }[] = [
+  { key: "rate_reply", label: "Replies to rate", hint: "They answered the site. Positive or negative?" },
+  { key: "schedule_email", label: "Send the call-scheduling email", hint: "Positive replies waiting for call times." },
+  { key: "send_site", label: "Send the site", hint: "They replied, or the quiet days are up." },
+  { key: "call", label: "Calls to make", hint: "Silent after the site, or a booked call." },
+  { key: "proposal", label: "Send the proposal", hint: "The call went well." },
+  { key: "send_question", label: "Send the opening question", hint: "New firms not yet contacted." },
+  { key: "build", label: "Build the site", hint: "The demo needs to exist before it goes out." },
+  { key: "own", label: "Your own tasks", hint: "" },
+]
+
+/** Tasks sorted into one block per kind of job, most urgent kinds first. */
+export function GroupedTasks({ items, empty }: { items: TaskView[]; empty?: string }) {
+  const present = GROUPS.filter((g) => items.some((i) => i.group === g.key))
+  if (!present.length) return <p className="rounded-xl border bg-surface px-4 py-6 text-sm text-muted-foreground">{empty ?? "Nothing here."}</p>
+  return (
+    <div className="grid gap-4">
+      {present.map((g) => {
+        const list = items.filter((i) => i.group === g.key)
+        return (
+          <section key={g.key} aria-label={g.label} className="overflow-hidden rounded-xl border bg-surface shadow-[0_1px_2px_oklch(0.3_0.02_60/0.04)]">
+            <header className="flex items-baseline justify-between gap-3 border-b bg-muted/40 px-4 py-2.5">
+              <h3 className="text-sm font-semibold">{g.label}</h3>
+              <span className="num rounded-md bg-st-move/25 px-1.5 text-xs font-medium">{list.length}</span>
+            </header>
+            <TaskList items={list} grouped />
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+export function TaskList({ items, empty, showActions = true, grouped = false }: { items: TaskView[]; empty?: string; showActions?: boolean; grouped?: boolean }) {
   const [pending, start] = React.useTransition()
   const [now, setNow] = React.useState<number | null>(null)
   React.useEffect(() => {
@@ -51,12 +84,20 @@ export function TaskList({ items, empty, showActions = true }: { items: TaskView
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-              <p className={cn("text-sm font-medium", t.state === "done" && "text-muted-foreground line-through")}>{t.title}</p>
+              {grouped && t.kind === "step" && t.siteId ? (
+                <Link href={`/sites/${t.siteId}`} className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
+                  {t.hue !== null && <VerticalMark hue={t.hue} className="size-1.5" />}
+                  {t.siteName}
+                </Link>
+              ) : (
+                <p className={cn("text-sm font-medium", t.state === "done" && "text-muted-foreground line-through")}>{t.title}</p>
+              )}
               <span className={cn("num text-xs whitespace-nowrap", t.state === "due" ? "text-foreground" : "text-muted-foreground")} suppressHydrationWarning>
                 {t.state === "done" ? "done" : now === null ? "" : dueLabel(t.due, now)}
               </span>
             </div>
-            {t.siteName && t.siteId && (
+            {grouped && t.kind === "step" && <p className="mt-0.5 text-sm text-muted-foreground">{t.title}</p>}
+            {!(grouped && t.kind === "step") && t.siteName && t.siteId && (
               <Link href={`/sites/${t.siteId}`} className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:underline">
                 {t.hue !== null && <VerticalMark hue={t.hue} className="size-1.5" />}
                 {t.siteName}

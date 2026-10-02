@@ -116,6 +116,38 @@ export default async function SettingsPage() {
         </div>
       </Block>
 
+      <Block
+        id="claude-code"
+        title="Connect Claude Code"
+        description="The same plugin address works in Claude Code, so a coding session can read your sites, build prompts and tasks, and record things back."
+      >
+        <div className="grid gap-5 text-sm">
+          <div className="grid gap-1.5">
+            <p className="font-medium">1. Add it (run once in a terminal)</p>
+            <CopyBlock text={`claude mcp add --transport http --scope user hundred ${base}/mcp`} label="Command" maxHeight="6rem" />
+          </div>
+          <div className="grid gap-1.5">
+            <p className="font-medium">2. Sign in</p>
+            <p className="text-muted-foreground">
+              Start <code className="text-foreground">claude</code>, type <code className="text-foreground">/mcp</code>, choose <span className="text-foreground">hundred</span> and <span className="text-foreground">Authenticate</span>. Your browser opens the &ldquo;Connect to Hundred&rdquo; page: enter your <code className="text-foreground">APP_PASSWORD</code>. Or run <code className="text-foreground">claude mcp login hundred</code> in the terminal.
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <p className="font-medium">3. Try it</p>
+            <p className="text-muted-foreground">
+              Ask Claude Code: <span className="text-foreground">&ldquo;Use Hundred to get the build prompt for Core &amp; Calm and build the site.&rdquo;</span>
+            </p>
+          </div>
+          <details className="group rounded-lg border bg-muted/30 px-3 py-2.5">
+            <summary className="cursor-pointer text-muted-foreground group-open:text-foreground">Without a browser sign-in (uses API_TOKEN instead)</summary>
+            <div className="mt-3 grid gap-2 text-muted-foreground">
+              <p>For servers or scripts: send your token in a header instead. Keep it out of shared files.</p>
+              <CopyBlock text={`claude mcp add --transport http --scope user hundred ${base}/mcp --header "Authorization: Bearer YOUR_API_TOKEN"`} label="Command" maxHeight="6rem" />
+            </div>
+          </details>
+        </div>
+      </Block>
+
       <Block title="Database" description="Everything lives in Supabase (Postgres), reached over HTTPS.">
         <div className="grid gap-4 text-sm">
           <Status

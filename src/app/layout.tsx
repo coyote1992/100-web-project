@@ -65,7 +65,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <Providers lookup={lookup}>
           <div className="flex min-h-dvh flex-col lg:flex-row">
             <Sidebar
-              badges={{ "/tasks": due }}
+              badges={{ "/": due }}
               sync={{ at: world.lastSyncAt?.getTime() ?? null, note: world.lastSyncNote }}
               progress={world.verticals.map((v) => ({ name: v.name, hue: v.hue, target: v.target, count: rows.filter((r) => r.verticalId === v.id).length }))}
             />

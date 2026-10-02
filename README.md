@@ -15,7 +15,7 @@ Gmail (outreach inbox), read by ChatGPT during the 30-minute sweep
 
 - **Verticals** (you): name, plus the two reference sites, pasted by hand.
 - **Sites** (the plugin adds them): one page per firm. Each page has the email conversation (read-only), what ChatGPT extracted from it (call time, objections, questions, interest), the next step, a **copy-ready build prompt** for Claude Code, and a place for your lessons.
-- **Tasks**: next steps appear on their own from each site's stage and the clock. Tick one and the site moves on. You can add your own tasks too.
+- **Overview**: next steps appear on their own from each site's stage and the clock, grouped by kind of job (replies to rate, send the site, calls to make…). Record what happened and the site moves on. You can add your own tasks too.
 - **Templates**: the build prompt, the send-the-site email, the call-scheduling email, and the two timing values. The plugin reads them when it drafts an email.
 - **Insights**: funnel, reply and positive rates with the sample size next to them, does asking first help, reply timing, pace, by vertical, by opening question, where sites are lost, and what people objected to.
 
@@ -31,6 +31,8 @@ Hundred exposes an **MCP server at `/mcp`** (Streamable HTTP) with 20 tools: add
 3. Plugins → + → paste `https://<your-app>/mcp`, choose OAuth, sign in.
 4. Install it from your personal plugins, then pick it in any chat or Work session and ask.
 5. Add a recurring ChatGPT task: "Using Hundred, run the mailbox sweep" every 30 minutes.
+
+**Claude Code** uses the same address: `claude mcp add --transport http --scope user hundred https://<your-app>/mcp`, then `/mcp` → hundred → Authenticate (or add `--header "Authorization: Bearer <API_TOKEN>"` to skip the browser sign-in). Settings → Connect Claude Code has the command with your address filled in.
 
 Settings also offers a **plugin package (.zip)**: `.codex-plugin/plugin.json`, `.mcp.json`, and two skills (`hundred`, `mailbox-sweep`) in OpenAI's plugin layout, with your `/mcp` address filled in. ChatGPT itself only needs the address; the package is for Codex and for publishing later. A REST API (`/api/v1`, bearer `API_TOKEN`, OpenAPI at `/api/v1/openapi.json`) exposes the same operations for scripts.
 

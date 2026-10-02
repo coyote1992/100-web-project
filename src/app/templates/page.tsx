@@ -33,7 +33,7 @@ export default async function TemplatesPage() {
     <Page className="max-w-[1040px]">
       <PageHeader title="Templates" description="The words and the timing behind the flow. ChatGPT reads these from the API when it drafts an email, and each site page fills them in for that firm." />
 
-      <Block title="Follow-up timing" description="How long silence lasts before the next step turns up in Tasks. ChatGPT reads these too.">
+      <Block title="Follow-up timing" description="How long silence lasts before the next step turns up on the Overview. ChatGPT reads these too.">
         <TimingFields siteFollowUpDays={t.siteFollowUpDays} callAfterSiteDays={t.callAfterSiteDays} />
       </Block>
 

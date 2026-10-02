@@ -156,7 +156,7 @@ function SidebarBody({ badges, progress, sync, onNavigate }: { badges: Record<st
 export function Sidebar(props: { badges: Record<string, number>; progress: Progress; sync: Sync }) {
   const [open, setOpen] = React.useState(false)
   const ui = useUI()
-  const due = props.badges["/tasks"]
+  const due = props.badges["/"]
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
@@ -173,7 +173,7 @@ export function Sidebar(props: { badges: Record<string, number>; progress: Progr
         </Link>
         <div className="ml-auto flex items-center gap-1">
           {due ? (
-            <Link href="/tasks" className="num mr-1 rounded-full bg-st-move/25 px-2 py-0.5 text-xs font-medium">
+            <Link href="/" className="num mr-1 rounded-full bg-st-move/25 px-2 py-0.5 text-xs font-medium">
               {due} due
             </Link>
           ) : null}
