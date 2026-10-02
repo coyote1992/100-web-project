@@ -14,8 +14,10 @@ const migrations = readdirSync(path.join(root, "drizzle"))
   .map((s) => s.trim())
   .filter(Boolean)
 
+// One line per statement, so nothing can be split in the middle by the SQL editor.
+const oneLine = (stmt: string) => stmt.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")").trim().replace(/;$/, "")
 const wrap = (stmt: string) =>
-  `do $do$ begin\n${stmt.replace(/;\s*$/, "")};\nexception when duplicate_table or duplicate_object or duplicate_column then null;\nend $do$;`
+  `do $do$ begin ${oneLine(stmt)}; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;`
 
 const tables = [...new Set(migrations.flatMap((s) => [...s.matchAll(/CREATE TABLE "([^"]+)"/g)].map((m) => m[1])))]
 
