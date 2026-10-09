@@ -225,6 +225,60 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "get_package_upload",
+    title: "Start uploading a site zip",
+    description:
+      "Step 1 of attaching a zip of the finished site to a firm. Returns a one-time upload URL and a ready curl command. Run the command from a shell that has the zip (PUT the file to the URL), then call confirm_package_upload. Max 50 MB. Replaces any earlier package. If you have no shell, tell the user to drag the zip onto the site's page instead.",
+    input: siteRef.extend({ filename: z.string().min(1).describe("File name, e.g. akademia-tenisz.zip") }),
+    run: async (a: { site: string; filename: string }) => {
+      const r = await resolveSite(a.site)
+      const u = await d.prepareUpload(r.id, a.filename)
+      return {
+        site: r.name,
+        uploadUrl: u.uploadUrl,
+        path: u.path,
+        name: u.name,
+        curl: `curl -X PUT -H "Content-Type: application/zip" --data-binary @${u.name} "${u.uploadUrl}"`,
+        next: `After the upload succeeds, call confirm_package_upload with site="${r.name}", path="${u.path}", name="${u.name}".`,
+      }
+    },
+  },
+  {
+    name: "confirm_package_upload",
+    title: "Finish uploading a site zip",
+    description: "Step 2: attaches the uploaded zip to the site once the PUT to the upload URL has succeeded. Use the path and name from get_package_upload.",
+    input: siteRef.extend({ path: z.string().min(3), name: z.string().min(1) }),
+    idempotent: true,
+    run: async (a: { site: string; path: string; name: string }, ctx) => {
+      const r = await resolveSite(a.site)
+      const pkg = await d.finishUpload(r.id, a.path, a.name)
+      return { attached: pkg.name, sizeBytes: pkg.size, pageUrl: `${ctx.base}/sites/${r.id}` }
+    },
+  },
+  {
+    name: "get_package",
+    title: "Get a site's zip download link",
+    description: "Returns the zip attached to a firm: name, size, upload time and a temporary (1 hour) download URL.",
+    input: siteRef,
+    readOnly: true,
+    run: async (a: { site: string }) => {
+      const r = await resolveSite(a.site)
+      const { pkg, url } = await d.packageLink(r.id)
+      return { site: r.name, name: pkg.name, sizeBytes: pkg.size, uploadedAt: new Date(pkg.at).toISOString(), downloadUrl: url }
+    },
+  },
+  {
+    name: "delete_package",
+    title: "Remove a site's zip",
+    description: "Deletes the zip attached to a firm. Only when the user asks.",
+    input: siteRef,
+    destructive: true,
+    run: async (a: { site: string }) => {
+      const r = await resolveSite(a.site)
+      return { removed: await d.removePackage(r.id) }
+    },
+  },
+  {
     name: "delete_site",
     title: "Delete a site",
     description: "Permanently deletes a firm with its emails, extracted notes and lessons. Only when the user clearly asks for it.",

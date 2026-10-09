@@ -131,3 +131,13 @@ export async function loadDemoData() {
 export async function clearAllData() {
   return run(() => d.wipeAll())
 }
+
+export async function prepareSiteUpload(siteId: string, filename: string) {
+  return run(() => d.prepareUpload(siteId, filename))
+}
+export async function finishSiteUpload(siteId: string, path: string, name: string) {
+  return run(() => d.finishUpload(siteId, path, name))
+}
+export async function removeSitePackage(siteId: string) {
+  return run(() => d.removePackage(siteId))
+}

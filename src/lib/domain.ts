@@ -4,6 +4,7 @@ import { getDb, schema } from "@/db"
 import type { Site } from "@/db/schema"
 import { BUILD_STATES, EXTRACT_KINDS, isStage, type BuildState, type ExtractKind, type Stage } from "./flow"
 import { host } from "./format"
+import { removeObject, signedDownload, signedUpload, objectSize, StorageError } from "./storage"
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS } from "./templates"
 
 const { sites, verticals, events, messages, extracts, lessons, tasks, settings } = schema
@@ -205,6 +206,7 @@ export async function updateSite(id: string, patch: SitePatch) {
 }
 
 export async function deleteSite(id: string) {
+  await removePackage(id).catch(() => {})
   const db = await getDb()
   await db.delete(sites).where(eq(sites.id, id))
 }
@@ -412,4 +414,73 @@ export async function wipeAll() {
   await db.delete(sites)
   await db.delete(verticals)
   await db.delete(settings)
+}
+
+/* ------------------------------------------------------------------ site packages (zip files) */
+
+export type SitePackage = { name: string; size: number; at: number; path: string }
+const pkgKey = (siteId: string) => `package:${siteId}`
+
+export async function getPackage(siteId: string): Promise<SitePackage | null> {
+  const db = await getDb()
+  const [row] = await db.select().from(settings).where(eq(settings.key, pkgKey(siteId)))
+  if (!row) return null
+  try {
+    return JSON.parse(row.value) as SitePackage
+  } catch {
+    return null
+  }
+}
+
+const cleanName = (n: string) => (n.trim().replace(/[^\w.\- ]+/g, "_").replace(/\s+/g, "-").slice(0, 80) || "site") .replace(/(\.zip)?$/i, ".zip")
+
+/** Step 1: a signed URL to PUT the zip to. */
+export async function prepareUpload(siteId: string, filename: string) {
+  if (!(await db_hasSite(siteId))) throw new DomainError("Site not found.", 404)
+  const name = cleanName(filename)
+  const path = `${siteId}/${Date.now()}-${name}`
+  try {
+    return { name, path, uploadUrl: await signedUpload(path) }
+  } catch (e) {
+    if (e instanceof StorageError) throw new DomainError(e.message)
+    throw e
+  }
+}
+
+/** Step 2: after the upload, check the file is there and attach it to the site (replacing any earlier one). */
+export async function finishUpload(siteId: string, path: string, name: string) {
+  if (!path.startsWith(`${siteId}/`)) throw new DomainError("That file doesn't belong to this site.")
+  const size = await objectSize(path).catch(() => null)
+  if (!size) throw new DomainError("The zip hasn't arrived yet. Upload it to the link first, then confirm.")
+  const old = await getPackage(siteId)
+  const pkg: SitePackage = { name, size, at: Date.now(), path }
+  await put(pkgKey(siteId), JSON.stringify(pkg))
+  if (old && old.path !== path) await removeObject(old.path)
+  return pkg
+}
+
+export async function packageLink(siteId: string) {
+  const pkg = await getPackage(siteId)
+  if (!pkg) throw new DomainError("This site has no package yet.", 404)
+  try {
+    return { pkg, url: await signedDownload(pkg.path, pkg.name) }
+  } catch (e) {
+    if (e instanceof StorageError) throw new DomainError(e.message)
+    throw e
+  }
+}
+
+export async function removePackage(siteId: string) {
+  const pkg = await getPackage(siteId)
+  if (!pkg) return false
+  await removeObject(pkg.path)
+  const db = await getDb()
+  await db.delete(settings).where(eq(settings.key, pkgKey(siteId)))
+  return true
+}
+
+async function db_hasSite(id: string) {
+  const db = await getDb()
+  const [row] = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, id))
+  return !!row
 }
