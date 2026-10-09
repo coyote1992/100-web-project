@@ -132,12 +132,13 @@ export async function clearAllData() {
   return run(() => d.wipeAll())
 }
 
-export async function prepareSiteUpload(siteId: string, filename: string) {
-  return run(() => d.prepareUpload(siteId, filename))
+const owner = (kind: "site" | "vertical", id: string) => ({ kind, id })
+export async function prepareUpload(kind: "site" | "vertical", id: string, filename: string) {
+  return run(() => d.prepareUpload(owner(kind, id), filename))
 }
-export async function finishSiteUpload(siteId: string, path: string, name: string) {
-  return run(() => d.finishUpload(siteId, path, name))
+export async function finishUpload(kind: "site" | "vertical", id: string, path: string, name: string) {
+  return run(() => d.finishUpload(owner(kind, id), path, name))
 }
-export async function removeSitePackage(siteId: string) {
-  return run(() => d.removePackage(siteId))
+export async function removePackage(kind: "site" | "vertical", id: string, packageId: string) {
+  return run(() => d.removePackage(owner(kind, id), packageId))
 }

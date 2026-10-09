@@ -206,7 +206,7 @@ export async function updateSite(id: string, patch: SitePatch) {
 }
 
 export async function deleteSite(id: string) {
-  await removePackage(id).catch(() => {})
+  await removePackage({ kind: "site", id }).catch(() => {})
   const db = await getDb()
   await db.delete(sites).where(eq(sites.id, id))
 }
@@ -368,6 +368,7 @@ export async function deleteVertical(id: string) {
   const db = await getDb()
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(sites).where(eq(sites.verticalId, id))
   if (n) throw new DomainError(`It still has ${n} site${n > 1 ? "s" : ""}. Move or delete them first.`)
+  await removePackage({ kind: "vertical", id }).catch(() => {})
   await db.delete(verticals).where(eq(verticals.id, id))
 }
 
@@ -416,29 +417,43 @@ export async function wipeAll() {
   await db.delete(settings)
 }
 
-/* ------------------------------------------------------------------ site packages (zip files) */
+/* ------------------------------------------------------------------ packages (zip files) */
 
-export type SitePackage = { name: string; size: number; at: number; path: string }
-const pkgKey = (siteId: string) => `package:${siteId}`
+/** A site holds one package (a new upload replaces it); a vertical can hold several. */
+export type PackageOwner = { kind: "site" | "vertical"; id: string }
+export type Package = { id: string; name: string; size: number; at: number; path: string }
+const pkgKey = (o: PackageOwner) => `packages:${o.id}`
+const MAX_PER_VERTICAL = 20
 
-export async function getPackage(siteId: string): Promise<SitePackage | null> {
+async function ownerName(o: PackageOwner) {
   const db = await getDb()
-  const [row] = await db.select().from(settings).where(eq(settings.key, pkgKey(siteId)))
-  if (!row) return null
+  const [row] =
+    o.kind === "site"
+      ? await db.select({ name: sites.name }).from(sites).where(eq(sites.id, o.id))
+      : await db.select({ name: verticals.name }).from(verticals).where(eq(verticals.id, o.id))
+  if (!row) throw new DomainError(`${o.kind === "site" ? "Site" : "Vertical"} not found.`, 404)
+  return row.name
+}
+
+export async function listPackages(o: PackageOwner): Promise<Package[]> {
+  const db = await getDb()
+  const [row] = await db.select().from(settings).where(eq(settings.key, pkgKey(o)))
+  if (!row) return []
   try {
-    return JSON.parse(row.value) as SitePackage
+    const list = JSON.parse(row.value)
+    return Array.isArray(list) ? (list as Package[]) : []
   } catch {
-    return null
+    return []
   }
 }
 
-const cleanName = (n: string) => (n.trim().replace(/[^\w.\- ]+/g, "_").replace(/\s+/g, "-").slice(0, 80) || "site") .replace(/(\.zip)?$/i, ".zip")
+const cleanName = (n: string) => `${n.trim().replace(/\.zip$/i, "").replace(/[^\w.\- ]+/g, "_").replace(/\s+/g, "-").slice(0, 80) || "package"}.zip`
 
 /** Step 1: a signed URL to PUT the zip to. */
-export async function prepareUpload(siteId: string, filename: string) {
-  if (!(await db_hasSite(siteId))) throw new DomainError("Site not found.", 404)
+export async function prepareUpload(o: PackageOwner, filename: string) {
+  await ownerName(o)
   const name = cleanName(filename)
-  const path = `${siteId}/${Date.now()}-${name}`
+  const path = `${o.id}/${Date.now()}-${name}`
   try {
     return { name, path, uploadUrl: await signedUpload(path) }
   } catch (e) {
@@ -447,21 +462,36 @@ export async function prepareUpload(siteId: string, filename: string) {
   }
 }
 
-/** Step 2: after the upload, check the file is there and attach it to the site (replacing any earlier one). */
-export async function finishUpload(siteId: string, path: string, name: string) {
-  if (!path.startsWith(`${siteId}/`)) throw new DomainError("That file doesn't belong to this site.")
+/** Step 2: after the upload, check the file is there and attach it. A site's earlier package is replaced. */
+export async function finishUpload(o: PackageOwner, path: string, name: string) {
+  if (!path.startsWith(`${o.id}/`)) throw new DomainError("That file doesn't belong here.")
+  const list = await listPackages(o)
+  if (list.some((p) => p.path === path)) return list.find((p) => p.path === path)!
   const size = await objectSize(path).catch(() => null)
   if (!size) throw new DomainError("The zip hasn't arrived yet. Upload it to the link first, then confirm.")
-  const old = await getPackage(siteId)
-  const pkg: SitePackage = { name, size, at: Date.now(), path }
-  await put(pkgKey(siteId), JSON.stringify(pkg))
-  if (old && old.path !== path) await removeObject(old.path)
+  if (o.kind === "vertical" && list.length >= MAX_PER_VERTICAL) throw new DomainError(`A vertical can hold ${MAX_PER_VERTICAL} packages. Remove one first.`)
+  const pkg: Package = { id: crypto.randomUUID(), name, size, at: Date.now(), path }
+  const keep = o.kind === "site" ? [] : list
+  await put(pkgKey(o), JSON.stringify([...keep, pkg]))
+  if (o.kind === "site") for (const old of list) await removeObject(old.path)
   return pkg
 }
 
-export async function packageLink(siteId: string) {
-  const pkg = await getPackage(siteId)
-  if (!pkg) throw new DomainError("This site has no package yet.", 404)
+async function pick(o: PackageOwner, ref?: string) {
+  const list = await listPackages(o)
+  if (!list.length) throw new DomainError("There is no package here yet.", 404)
+  if (!ref) {
+    if (list.length === 1) return list[0]
+    throw new DomainError(`There are ${list.length} packages: ${list.map((p) => p.name).join(", ")}. Say which one.`, 422)
+  }
+  const q = ref.trim().toLowerCase()
+  const hit = list.find((p) => p.id === ref || p.name.toLowerCase() === q) ?? list.find((p) => p.name.toLowerCase().includes(q))
+  if (!hit) throw new DomainError(`No package called "${ref}". Available: ${list.map((p) => p.name).join(", ")}.`, 404)
+  return hit
+}
+
+export async function packageLink(o: PackageOwner, ref?: string) {
+  const pkg = await pick(o, ref)
   try {
     return { pkg, url: await signedDownload(pkg.path, pkg.name) }
   } catch (e) {
@@ -470,17 +500,16 @@ export async function packageLink(siteId: string) {
   }
 }
 
-export async function removePackage(siteId: string) {
-  const pkg = await getPackage(siteId)
-  if (!pkg) return false
-  await removeObject(pkg.path)
-  const db = await getDb()
-  await db.delete(settings).where(eq(settings.key, pkgKey(siteId)))
-  return true
-}
-
-async function db_hasSite(id: string) {
-  const db = await getDb()
-  const [row] = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, id))
-  return !!row
+export async function removePackage(o: PackageOwner, ref?: string) {
+  const list = await listPackages(o)
+  if (!list.length) return 0
+  const gone = ref ? [await pick(o, ref)] : list
+  for (const p of gone) await removeObject(p.path)
+  const left = list.filter((p) => !gone.includes(p))
+  if (left.length) await put(pkgKey(o), JSON.stringify(left))
+  else {
+    const db = await getDb()
+    await db.delete(settings).where(eq(settings.key, pkgKey(o)))
+  }
+  return gone.length
 }

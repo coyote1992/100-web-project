@@ -3,7 +3,8 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeftIcon, ArrowUpRightIcon, TriangleAlertIcon } from "lucide-react"
 import { getWorld } from "@/lib/data"
-import { getPackage } from "@/lib/domain"
+import { listPackages } from "@/lib/domain"
+import { PackageUpload } from "@/components/app/package-upload"
 import { buildRows } from "@/lib/metrics"
 import { activity } from "@/lib/activity"
 import { fillTemplate } from "@/lib/templates"
@@ -16,7 +17,7 @@ import { CopyBlock } from "@/components/app/copy-block"
 import { StepActions } from "@/components/app/step-actions"
 import { StagePill, VerticalTag } from "@/components/app/status"
 import { Thread } from "./thread"
-import { PackageUpload, BuildControls, CallControls, DetailsControls, LessonsPanel, StageFooter } from "./site-client"
+import { BuildControls, CallControls, DetailsControls, LessonsPanel, StageFooter } from "./site-client"
 
 export async function generateMetadata({ params }: PageProps<"/sites/[id]">): Promise<Metadata> {
   const { id } = await params
@@ -40,7 +41,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
   const { id } = await params
   const world = await getWorld()
   const row = buildRows(world).find((r) => r.id === id)
-  const pkg = row ? await getPackage(row.id).catch(() => null) : null
+  const pkgs = row ? await listPackages({ kind: "site", id: row.id }).catch(() => []) : []
   if (!row) notFound()
 
   const { text: prompt, missing } = fillTemplate(world.templates.buildPrompt, row)
@@ -212,7 +213,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
             <div className="mt-4 border-t pt-4">
               <BuildControls id={row.id} build={row.build} demoUrl={row.demoUrl} />
               <div className="mt-4">
-                <PackageUpload id={row.id} pkg={pkg} />
+                <PackageUpload kind="site" id={row.id} packages={pkgs} title="Package (zip)" />
               </div>
             </div>
           </Card>

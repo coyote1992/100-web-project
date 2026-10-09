@@ -8,6 +8,8 @@ import { day, pct } from "@/lib/format"
 import { Ledger, Page, Panel, Section } from "@/components/app/page"
 import { FunnelChart } from "@/components/app/funnel"
 import { StagePill, VerticalMark } from "@/components/app/status"
+import { listPackages } from "@/lib/domain"
+import { PackageUpload } from "@/components/app/package-upload"
 import { VerticalEditor } from "../vertical-client"
 
 export async function generateMetadata({ params }: PageProps<"/verticals/[id]">): Promise<Metadata> {
@@ -22,6 +24,7 @@ export default async function VerticalPage({ params }: PageProps<"/verticals/[id
   const vertical = world.verticals.find((v) => v.id === id)
   if (!vertical) notFound()
   const rows = buildRows(world).filter((r) => r.verticalId === id)
+  const pkgs = await listPackages({ kind: "vertical", id }).catch(() => [])
   const [v] = byVertical(rows, [vertical], timingOf(world.templates))
   const lessons = rows.flatMap((r) => r.lessons.map((l) => ({ ...l, site: r }))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
@@ -95,6 +98,9 @@ export default async function VerticalPage({ params }: PageProps<"/verticals/[id
           <Panel className="p-5 lg:sticky lg:top-8">
             <h2 className="mb-4 text-sm font-semibold">Reference sites & settings</h2>
             <VerticalEditor v={{ id: vertical.id, name: vertical.name, hue: vertical.hue, target: vertical.target, reference1: vertical.reference1, reference2: vertical.reference2 }} />
+            <div className="mt-5 border-t pt-5">
+              <PackageUpload kind="vertical" id={vertical.id} packages={pkgs} title="Packages (zip)" />
+            </div>
           </Panel>
         </aside>
       </div>
