@@ -3,10 +3,12 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { PencilIcon, Trash2Icon, XIcon } from "lucide-react"
+import { PencilIcon, PhoneIcon, Trash2Icon, XIcon } from "lucide-react"
 import { addLesson, deleteLesson, deleteSite, markSeen, moveToStage, setCallStatus, updateLesson, updateSite } from "@/app/actions"
 import { CallOptions, StageMenu, StageRing } from "@/components/app/stage"
 import { AutoField } from "@/components/app/auto-field"
+import { telHref } from "@/lib/phone"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -55,7 +57,21 @@ export function CallControls({ id, callAt, callNotes }: { id: string; callAt: st
   )
 }
 
-function KVText({ label, value, onSave, type = "text", placeholder }: { label: string; value: string; onSave: (v: string) => Promise<unknown>; type?: string; placeholder?: string }) {
+function KVText({
+  label,
+  value,
+  onSave,
+  type = "text",
+  placeholder,
+  action,
+}: {
+  label: string
+  value: string
+  onSave: (v: string) => Promise<unknown>
+  type?: string
+  placeholder?: string
+  action?: React.ReactNode
+}) {
   const id = React.useId()
   const [v, setV] = React.useState(value)
   const [prop, setProp] = React.useState(value)
@@ -64,7 +80,7 @@ function KVText({ label, value, onSave, type = "text", placeholder }: { label: s
     setV(value)
   }
   return (
-    <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2">
+    <div className={cn("grid items-center gap-2", action ? "grid-cols-[92px_minmax(0,1fr)_auto]" : "grid-cols-[92px_minmax(0,1fr)]")}>
       <label htmlFor={id} className="text-[13px] text-muted-foreground">
         {label}
       </label>
@@ -77,6 +93,7 @@ function KVText({ label, value, onSave, type = "text", placeholder }: { label: s
         onBlur={() => v !== value && void onSave(v.trim())}
         className="h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-[13.5px] transition-colors placeholder:text-muted-foreground/70 hover:bg-accent focus:border-input focus:bg-background focus:outline-none"
       />
+      {action}
     </div>
   )
 }
@@ -126,7 +143,20 @@ export function DetailsList({
     <div className="grid gap-0.5">
       <KVText label="Contact" value={site.contactName} onSave={save(id, "contactName")} placeholder="Name" />
       <KVSelect label="Role" value={site.contactRole} options={CONTACT_ROLES} labels={{ unknown: "Unknown", owner: "Owner", trainer: "Trainer" }} onSave={save(id, "contactRole")} />
-      <KVText label="Phone" type="tel" value={site.phone} onSave={save(id, "phone")} placeholder="+36 …" />
+      <KVText
+        label="Phone"
+        type="tel"
+        value={site.phone}
+        onSave={save(id, "phone")}
+        placeholder="+36 …"
+        action={
+          site.phone ? (
+            <a href={telHref(site.phone)} aria-label={`Call ${site.phone}`} className="pressable grid size-8 place-items-center rounded-full bg-court text-background hover:opacity-90">
+              <PhoneIcon className="size-3.5" />
+            </a>
+          ) : null
+        }
+      />
       <KVSelect label="Whose number" value={site.phoneOwner} options={PHONE_OWNERS} labels={{ unknown: "Not sure", person: "The contact", reception: "Reception" }} onSave={save(id, "phoneOwner")} />
       <KVText label="Email" type="email" value={site.email} onSave={save(id, "email")} />
       <KVText label="Website" value={site.oldSiteUrl} onSave={save(id, "oldSiteUrl")} placeholder="their-club.hu" />

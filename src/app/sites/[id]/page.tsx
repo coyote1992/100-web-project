@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon, MailIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon, MailIcon, PhoneIcon } from "lucide-react"
 import { getWorld } from "@/lib/data"
 import { buildRows } from "@/lib/metrics"
 import { BOARD_LABEL, boardOf } from "@/lib/flow"
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { dayTime, host, href } from "@/lib/format"
 import { Page } from "@/components/app/page"
 import { STAGE_COLOR } from "@/lib/stage-colors"
+import { phoneWho, telHref } from "@/lib/phone"
 import { Body } from "./thread"
 import { CallBox, CallControls, DeleteSite, DetailsList, LessonsPanel, MarkSeen, StageBox } from "./site-client"
 
@@ -57,7 +58,20 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <div className="min-w-0">
           <h1 className="display text-[2rem] leading-[1.05] text-balance sm:text-[2.4rem]">{row.name}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {row.phone && (
+            <a
+              href={telHref(row.phone)}
+              className="pressable mt-3 inline-flex items-center gap-2.5 rounded-full border bg-surface py-1.5 pr-4 pl-1.5 text-sm hover:bg-accent"
+              aria-label={`Call ${row.phone}, ${phoneWho(row)}`}
+            >
+              <span className="grid size-7 place-items-center rounded-full bg-court text-background">
+                <PhoneIcon className="size-3.5" />
+              </span>
+              <span className="num font-semibold">{row.phone}</span>
+              <span className="text-muted-foreground">{phoneWho(row)}</span>
+            </a>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {row.city && <span className="text-muted-foreground">{row.city}</span>}
             {row.oldSiteUrl && (
               <a href={href(row.oldSiteUrl)} target="_blank" rel="noreferrer" className="font-medium text-court underline decoration-court/30 underline-offset-4 hover:decoration-court">

@@ -7,8 +7,9 @@ import { ChevronRightIcon, MessageCircleIcon, PhoneIcon, XIcon } from "lucide-re
 import { moveToStage, setCallStatus } from "@/app/actions"
 import { CallCycle, StageMenu, StageSwatch, STAGE_COLOR } from "@/components/app/stage"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { BOARD, BOARD_EXTRA, BOARD_LABEL, CONTACT_ROLE_LABEL, type BoardKey, type CallStatus, type ContactRole, type PhoneOwner } from "@/lib/flow"
+import { BOARD, BOARD_EXTRA, BOARD_LABEL, type BoardKey, type CallStatus, type ContactRole, type PhoneOwner } from "@/lib/flow"
 import { cn } from "@/lib/utils"
+import { phoneWho, telHref } from "@/lib/phone"
 
 export type DashRow = {
   id: string
@@ -111,13 +112,6 @@ export function DashboardView({ title, rows: initial }: { title: string; rows: D
   )
 }
 
-/** Whose number it is, in a few words: "Reception", "Bogyó Tamás · Owner". */
-function phoneWho(r: DashRow) {
-  if (r.phoneOwner === "reception") return "Reception"
-  if (r.phoneOwner === "person") return `${r.contactName || "A person"} · ${CONTACT_ROLE_LABEL[r.contactRole]}`
-  return r.contactName ? `${r.contactName} · ${CONTACT_ROLE_LABEL[r.contactRole]} · number not confirmed` : "Not sure whose number"
-}
-
 function ClubRow({ r, onStage, onCall }: { r: DashRow; onStage: (b: BoardKey) => void; onCall: (c: CallStatus) => void }) {
   return (
     <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b px-3 py-3 transition-colors duration-100 last:border-0 hover:bg-soft/60 sm:px-4 md:grid-cols-[32px_minmax(0,1.2fr)_minmax(0,1fr)_11.5rem] md:gap-x-4">
@@ -135,10 +129,10 @@ function ClubRow({ r, onStage, onCall }: { r: DashRow; onStage: (b: BoardKey) =>
         <p className="truncate text-[13px] text-muted-foreground">{r.city || "City unknown"}</p>
       </div>
 
-      <div className="col-start-2 row-start-2 min-w-0 md:col-start-auto md:row-start-auto">
+      <div className="col-span-2 col-start-2 row-start-2 min-w-0 md:col-span-1 md:col-start-auto md:row-start-auto">
         {r.phone ? (
           <>
-            <a href={`tel:${r.phone.replace(/[^\d+]/g, "")}`} className="num inline-flex items-center gap-1.5 text-[13.5px] hover:underline">
+            <a href={telHref(r.phone)} aria-label={`Call ${r.name}, ${r.phone}`} className="num inline-flex items-center gap-1.5 rounded-md py-0.5 text-[13.5px] font-medium whitespace-nowrap text-court hover:underline">
               <PhoneIcon className="size-3.5 shrink-0 text-muted-foreground" />
               {r.phone}
             </a>
