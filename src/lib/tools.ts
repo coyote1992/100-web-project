@@ -222,7 +222,7 @@ export const TOOLS: Tool[] = [
       lostReason: z.string().optional().describe("With stage lost: why."),
       dealValue: z.number().int().nullable().optional().describe("With stage won: the deal in euros."),
       callAt: dateStr.nullable().optional(),
-      callNotes: z.string().optional(),
+      callNotes: z.string().optional().describe("The user's own call notes. Only write what the user dictates."),
       build: z.enum(BUILD_STATES).optional(),
       demoUrl: z.string().optional().describe("Saving a demo URL marks the site ready."),
       phoneOwner: z.enum(PHONE_OWNERS).optional().describe("Whose phone number it is: person (the contact named in contactName), reception, or unknown."),

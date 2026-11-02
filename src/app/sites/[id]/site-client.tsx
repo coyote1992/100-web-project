@@ -21,38 +21,40 @@ const save = (id: string, key: string) => async (v: string) => {
   if (!res.ok) toast.error(res.error)
 }
 
-function localInput(iso: string | null) {
+/** The call's day as YYYY-MM-DD in the viewer's time zone. */
+function localDate(iso: string | null) {
   if (!iso) return ""
   const d = new Date(iso)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
 }
 
 export function CallControls({ id, callAt, callNotes }: { id: string; callAt: string | null; callNotes: string }) {
-  const [v, setV] = React.useState(localInput(callAt))
+  const [v, setV] = React.useState(localDate(callAt))
   const [prop, setProp] = React.useState(callAt)
   if (prop !== callAt) {
     setProp(callAt)
-    setV(localInput(callAt))
+    setV(localDate(callAt))
   }
   return (
     <div className="grid gap-3">
       <div className="grid gap-1.5">
         <label htmlFor="call-at" className="text-xs text-muted-foreground">
-          Call date and time
+          Call date
         </label>
         <Input
           id="call-at"
-          type="datetime-local"
+          type="date"
           value={v}
           onChange={(e) => setV(e.target.value)}
           onBlur={async () => {
-            if (v === localInput(callAt)) return
-            const res = await updateSite(id, { callAt: v ? new Date(v).toISOString() : null })
+            if (v === localDate(callAt)) return
+            // Midday local time, so the day never shifts with time zones.
+            const res = await updateSite(id, { callAt: v ? new Date(`${v}T12:00:00`).toISOString() : null })
             if (!res.ok) toast.error(res.error)
           }}
         />
       </div>
-      <AutoField label="Call notes" value={callNotes} onSave={save(id, "callNotes")} multiline rows={3} placeholder="What to cover, what was said" />
+      <AutoField label="Call notes" value={callNotes} onSave={save(id, "callNotes")} multiline rows={3} placeholder="Your notes for the call" />
     </div>
   )
 }
