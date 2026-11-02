@@ -1,9 +1,9 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  // Tasks used to be their own page; they live on the Overview now.
+  // The app is one dashboard now; old pages lead back to it.
   async redirects() {
-    return [{ source: "/tasks", destination: "/", permanent: true }]
+    return ["/tasks", "/sites", "/insights", "/verticals", "/verticals/:id"].map((source) => ({ source, destination: "/", permanent: false }))
   },
   devIndicators: { position: "top-right" },
   // PGlite (the local stand-in for Supabase) loads its own WASM files, so it must not be bundled.

@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google"
 import { Providers } from "@/components/app/providers"
-import { Sidebar } from "@/components/app/sidebar"
+import { TopBar } from "@/components/app/top-bar"
 import { getWorld } from "@/lib/data"
-import { buildRows, taskItems } from "@/lib/metrics"
+import { buildRows } from "@/lib/metrics"
 import { dbKind } from "@/db/config"
 import { SETUP_SQL } from "@/db/setup-sql"
 import "./globals.css"
@@ -51,24 +51,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </html>
     )
   }
-  const rows = buildRows(world)
-  const due = taskItems(rows, world.tasks).filter((i) => i.state === "due").length
-
-  const lookup = {
-    verticals: world.verticals.map((v) => ({ id: v.id, name: v.name, hue: v.hue })),
-    sites: rows.map((r) => ({ id: r.id, name: r.name, verticalId: r.verticalId, city: r.city, status: r.status })),
-  }
+  const lookup = { sites: buildRows(world).map((r) => ({ id: r.id, name: r.name, city: r.city, board: r.board })) }
 
   return (
     <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${serif.variable} h-full antialiased`}>
       <body className="min-h-full">
         <Providers lookup={lookup}>
-          <div className="flex min-h-dvh flex-col lg:flex-row">
-            <Sidebar
-              badges={{ "/": due }}
-              sync={{ at: world.lastSyncAt?.getTime() ?? null, note: world.lastSyncNote }}
-              progress={world.verticals.map((v) => ({ name: v.name, hue: v.hue, target: v.target, count: rows.filter((r) => r.verticalId === v.id).length }))}
-            />
+          <div className="flex min-h-dvh flex-col">
+            <TopBar />
             <main className="min-w-0 flex-1">
               {dbKind === "temporary" && (
                 <div role="status" className="border-b border-move-line bg-move-soft px-4 py-2.5 text-sm sm:px-8">

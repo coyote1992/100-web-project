@@ -4,14 +4,15 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { PencilIcon, Trash2Icon, XIcon } from "lucide-react"
-import { addLesson, deleteLesson, deleteSite, undoStep, updateLesson, updateSite } from "@/app/actions"
+import { addLesson, deleteLesson, deleteSite, markSeen, moveToStage, setCallStatus, updateLesson, updateSite } from "@/app/actions"
+import { CallToggle, StageMenu, STAGE_COLOR } from "@/components/app/stage"
 import { AutoField } from "@/components/app/auto-field"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Kbd } from "@/components/ui/kbd"
 import { Textarea } from "@/components/ui/textarea"
-import { BUILD_LABEL, BUILD_STATES, type BuildState } from "@/lib/flow"
+import { BOARD, BUILD_LABEL, BUILD_STATES, type BoardKey, type BuildState, type CallStatus } from "@/lib/flow"
 import { cn } from "@/lib/utils"
 
 const save = (id: string, key: string) => async (v: string) => {
@@ -78,7 +79,7 @@ export function CallControls({ id, callAt, callNotes }: { id: string; callAt: st
   )
 }
 
-export function DetailsControls({ id, site }: { id: string; site: { oldSiteUrl: string; contactName: string; city: string; email: string; phone: string; questionVariant: string } }) {
+export function DetailsControls({ id, site }: { id: string; site: { oldSiteUrl: string; contactName: string; city: string; email: string; phone: string } }) {
   return (
     <div className="grid gap-4">
       <AutoField label="Current website" value={site.oldSiteUrl} onSave={save(id, "oldSiteUrl")} placeholder="their-site.hu" />
@@ -88,7 +89,6 @@ export function DetailsControls({ id, site }: { id: string; site: { oldSiteUrl: 
       </div>
       <AutoField label="Email. Matches incoming mail to this site" type="email" value={site.email} onSave={save(id, "email")} />
       <AutoField label="Phone" type="tel" value={site.phone} onSave={save(id, "phone")} />
-      <AutoField label="Opening question used" value={site.questionVariant} onSave={save(id, "questionVariant")} placeholder="Lets Insights compare questions" />
     </div>
   )
 }
@@ -197,28 +197,21 @@ export function LessonsPanel({ siteId, lessons }: { siteId: string; lessons: { i
   )
 }
 
-export function StageFooter({ id, name, canUndo }: { id: string; name: string; canUndo: boolean }) {
+export function DeleteSite({ id, name }: { id: string; name: string }) {
   const router = useRouter()
   const [confirm, setConfirm] = React.useState(false)
   const [pending, start] = React.useTransition()
   return (
     <>
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-        {canUndo && (
-          <button className="hover:text-foreground" disabled={pending} onClick={() => start(async () => void (await undoStep(id)))}>
-            Undo last step
-          </button>
-        )}
-        <button className="inline-flex items-center gap-1.5 hover:text-destructive" onClick={() => setConfirm(true)}>
-          <Trash2Icon className="size-3.5" />
-          Delete site
-        </button>
-      </div>
+      <button className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive" onClick={() => setConfirm(true)}>
+        <Trash2Icon className="size-3.5" />
+        Delete club
+      </button>
       <Dialog open={confirm} onOpenChange={setConfirm}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {name}?</DialogTitle>
-            <DialogDescription>Its emails, extracted notes and lessons go with it. ChatGPT can add the firm again, but the history is gone.</DialogDescription>
+            <DialogDescription>Its emails, extracted notes and lessons go with it. ChatGPT can add the club again, but the history is gone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirm(false)}>
@@ -230,16 +223,68 @@ export function StageFooter({ id, name, canUndo }: { id: string; name: string; c
               onClick={() =>
                 start(async () => {
                   await deleteSite(id)
-                  router.push("/sites")
+                  router.push("/")
                   toast.success(`${name} deleted`)
                 })
               }
             >
-              Delete site
+              Delete club
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   )
+}
+
+/** Stage and call outcome, the two things changed by hand. */
+export function StageStrip({ id, board, callStatus }: { id: string; board: BoardKey; callStatus: CallStatus }) {
+  const [state, apply] = React.useOptimistic({ board, callStatus }, (s, p: Partial<{ board: BoardKey; callStatus: CallStatus }>) => ({ ...s, ...p }))
+  const [, start] = React.useTransition()
+  const reached = BOARD.findIndex((b) => b.key === state.board)
+  return (
+    <div className="grid gap-4">
+      <ol className="grid grid-cols-6 gap-1" aria-label="Progress">
+        {BOARD.map((b, i) => (
+          <li key={b.key} className="min-w-0">
+            <span className="block h-1.5 rounded-full" style={{ background: i <= reached ? STAGE_COLOR[b.key] : "color-mix(in oklch, var(--foreground) 10%, transparent)" }} />
+            <span className={cn("mt-1.5 hidden truncate text-xs sm:block", i <= reached ? "text-foreground" : "text-muted-foreground")}>{b.label}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="-ml-2">
+          <StageMenu
+            stage={state.board}
+            onChange={(next) =>
+              start(async () => {
+                apply({ board: next })
+                const res = await moveToStage(id, next)
+                if (!res.ok) toast.error(res.error)
+              })
+            }
+          />
+        </div>
+        <CallToggle
+          labels
+          value={state.callStatus}
+          onChange={(next) =>
+            start(async () => {
+              apply({ callStatus: next })
+              const res = await setCallStatus(id, next)
+              if (!res.ok) toast.error(res.error)
+            })
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+/** Opening the page counts as reading the reply. */
+export function MarkSeen({ id }: { id: string }) {
+  React.useEffect(() => {
+    void markSeen(id)
+  }, [id])
+  return null
 }

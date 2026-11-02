@@ -8,6 +8,13 @@
       "when": 1790783089062,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793633400188,
+      "tag": "0001_call_status_seen",
+      "breakpoints": true
     }
   ]
 }

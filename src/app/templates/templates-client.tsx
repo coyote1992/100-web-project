@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { resetTemplate, saveTemplates } from "@/app/actions"
+import { resetTemplate, saveTemplates, updateVertical } from "@/app/actions"
 import { AutoField } from "@/components/app/auto-field"
 import { Button } from "@/components/ui/button"
 
@@ -56,6 +56,20 @@ export function TimingFields({ siteFollowUpDays, callAfterSiteDays }: { siteFoll
         <AutoField label="Call after this many quiet days" type="number" value={String(callAfterSiteDays)} onSave={save("callAfterSiteDays")} className="max-w-56" />
         <p className="text-sm text-muted-foreground">After the site went out with no answer, a call task appears.</p>
       </div>
+    </div>
+  )
+}
+
+/** The two sites Claude Code is pointed at when it builds a club's new site. */
+export function ReferenceFields({ id, reference1, reference2 }: { id: string; reference1: string; reference2: string }) {
+  const save = (key: "reference1" | "reference2") => async (value: string) => {
+    const res = await updateVertical(id, { [key]: value })
+    if (!res.ok) toast.error(res.error)
+  }
+  return (
+    <div className="grid gap-4">
+      <AutoField label="Reference site 1" value={reference1} onSave={save("reference1")} placeholder="https://www.lagunabeachtennisacademy.com" />
+      <AutoField label="Reference site 2" value={reference2} onSave={save("reference2")} placeholder="https://…" />
     </div>
   )
 }

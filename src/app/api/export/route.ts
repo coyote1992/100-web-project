@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { getWorld } from "@/lib/data"
+import { getEverything } from "@/lib/data"
 
-/** Full JSON dump of everything, for backups or analysis elsewhere. */
+/** Full JSON dump of everything, all verticals included, for backups or analysis elsewhere. */
 export async function GET() {
-  const world = await getWorld()
+  const world = await getEverything()
   return new NextResponse(JSON.stringify({ exportedAt: new Date().toISOString(), ...world }, null, 2), {
     headers: {
       "content-type": "application/json",

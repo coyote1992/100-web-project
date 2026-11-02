@@ -23,6 +23,40 @@ export const STAGES = [
 ] as const
 export type Stage = (typeof STAGES)[number]
 
+/** How the phone call went. Recorded by hand on the dashboard. */
+export const CALL_STATUSES = ["none", "reached", "missed", "callback"] as const
+export type CallStatus = (typeof CALL_STATUSES)[number]
+export const CALL_LABEL: Record<CallStatus, string> = {
+  none: "Not called",
+  reached: "Successfully called",
+  missed: "Unsuccessfully called",
+  callback: "Got callback",
+}
+
+/**
+ * The six stages the dashboard shows. Each covers one or more flow stages.
+ * "Not contacted" and "Lost" sit outside the six and only appear when a site is in them.
+ */
+export const BOARD = [
+  { key: "question_sent", label: "Question sent", to: "question_sent", covers: ["question_sent"] },
+  { key: "response", label: "Response received", to: "question_replied", covers: ["question_replied"] },
+  { key: "site_sent", label: "Site sent", to: "site_sent", covers: ["site_sent"] },
+  { key: "site_reply", label: "Site reply", to: "site_replied", covers: ["site_replied", "site_positive", "call_scheduling"] },
+  { key: "call", label: "Call scheduled", to: "call_scheduled", covers: ["call_scheduled", "called", "proposal_sent"] },
+  { key: "order", label: "Order received", to: "won", covers: ["won"] },
+] as const satisfies readonly { key: string; label: string; to: Stage; covers: readonly Stage[] }[]
+export const BOARD_EXTRA = [
+  { key: "not_contacted", label: "Not contacted", to: "new", covers: ["new"] },
+  { key: "lost", label: "Lost", to: "lost", covers: ["lost"] },
+] as const satisfies readonly { key: string; label: string; to: Stage; covers: readonly Stage[] }[]
+export type BoardKey = (typeof BOARD)[number]["key"] | (typeof BOARD_EXTRA)[number]["key"]
+const ALL_BOARD = [...BOARD, ...BOARD_EXTRA]
+export const BOARD_LABEL = Object.fromEntries(ALL_BOARD.map((b) => [b.key, b.label])) as Record<BoardKey, string>
+export const BOARD_TO = Object.fromEntries(ALL_BOARD.map((b) => [b.key, b.to])) as Record<BoardKey, Stage>
+export function boardOf(stage: Stage): BoardKey {
+  return ALL_BOARD.find((b) => (b.covers as readonly Stage[]).includes(stage))!.key
+}
+
 export const BUILD_STATES = ["todo", "building", "ready"] as const
 export type BuildState = (typeof BUILD_STATES)[number]
 

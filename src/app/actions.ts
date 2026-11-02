@@ -5,7 +5,7 @@ import { z } from "zod"
 import { getDb } from "@/db"
 import { seed } from "@/db/seed"
 import * as d from "@/lib/domain"
-import { actionsFrom, isStage } from "@/lib/flow"
+import { BOARD_TO, CALL_STATUSES, actionsFrom, isStage, type BoardKey } from "@/lib/flow"
 import { getWorld } from "@/lib/data"
 
 const done = () => revalidatePath("/", "layout")
@@ -50,6 +50,31 @@ export async function setStageDirect(siteId: string, stage: string) {
     if (!isStage(stage)) throw new d.DomainError("Unknown stage.")
     await d.setStage(siteId, stage)
   })
+}
+
+/** Move a site to one of the dashboard's stages. */
+export async function moveToStage(siteId: string, key: BoardKey) {
+  return run(async () => {
+    const stage = BOARD_TO[key]
+    if (!stage) throw new d.DomainError("Unknown stage.")
+    await d.setStage(siteId, stage)
+  })
+}
+
+export async function setCallStatus(siteId: string, status: string) {
+  return run(async () => {
+    const s = z.enum(CALL_STATUSES).parse(status)
+    await d.updateSite(siteId, { callStatus: s })
+  })
+}
+
+/** Called when a site page opens. No revalidation: the page in front of you doesn't change. */
+export async function markSeen(siteId: string) {
+  try {
+    await d.markSeen(siteId)
+  } catch {
+    // Not worth bothering anyone about.
+  }
 }
 
 /* ------------------------------------------------------------------ site fields and lessons */

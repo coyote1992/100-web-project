@@ -5,10 +5,10 @@ import { ThemeProvider } from "next-themes"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { CommandMenu } from "./command-menu"
+import type { BoardKey } from "@/lib/flow"
 
 export type Lookup = {
-  verticals: { id: string; name: string; hue: number }[]
-  sites: { id: string; name: string; verticalId: string; city: string; status: string }[]
+  sites: { id: string; name: string; city: string; board: BoardKey }[]
 }
 
 type UI = { openCommand: () => void }

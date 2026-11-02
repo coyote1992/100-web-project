@@ -2,7 +2,7 @@ import "server-only"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import type { Site } from "@/db/schema"
-import { BUILD_STATES, EXTRACT_KINDS, isStage, type BuildState, type ExtractKind, type Stage } from "./flow"
+import { BUILD_STATES, CALL_STATUSES, EXTRACT_KINDS, isStage, type BuildState, type CallStatus, type ExtractKind, type Stage } from "./flow"
 import { host } from "./format"
 import { removeObject, signedDownload, signedUpload, objectSize, StorageError } from "./storage"
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS } from "./templates"
@@ -135,6 +135,8 @@ export async function setStage(siteId: string, stage: Stage, opts: StageOpts = {
       ...(opts.callAt !== undefined ? { callAt: opts.callAt } : {}),
       ...(opts.dealValue != null ? { dealValue: opts.dealValue } : {}),
       ...(stage === "lost" ? { lostReason: reason } : {}),
+      // Recording a held call fills in the call outcome, unless one was already chosen.
+      ...((stage === "called" || stage === "proposal_sent") && site.callStatus === "none" ? { callStatus: "reached" as const } : {}),
     })
     .where(eq(sites.id, siteId))
     .returning()
@@ -169,6 +171,7 @@ export type SitePatch = Partial<{
   callNotes: string
   lostReason: string
   dealValue: number | null
+  callStatus: CallStatus
   stage: string
   stageAt: string
   note: string
@@ -189,6 +192,10 @@ export async function updateSite(id: string, patch: SitePatch) {
     set.build = patch.build
   } else if (set.demoUrl && site.build !== "ready") set.build = "ready" // a demo link means the site exists
   if (patch.dealValue !== undefined) set.dealValue = patch.dealValue
+  if (patch.callStatus !== undefined) {
+    if (!CALL_STATUSES.includes(patch.callStatus)) throw new DomainError(`callStatus must be one of ${CALL_STATUSES.join(", ")}.`)
+    set.callStatus = patch.callStatus
+  }
   if (patch.callAt !== undefined) set.callAt = patch.callAt ? toDate(patch.callAt) : null
   if (patch.name !== undefined && !set.name) throw new DomainError("name can't be empty.")
   await db.update(sites).set(set).where(eq(sites.id, id))
@@ -203,6 +210,12 @@ export async function updateSite(id: string, patch: SitePatch) {
   if (stage) await setStage(id, stage, { at: patch.stageAt ? toDate(patch.stageAt) : undefined, note: patch.note, lostReason: patch.lostReason })
   const [row] = await db.select().from(sites).where(eq(sites.id, id))
   return row
+}
+
+/** Opening a site page clears its unread-reply mark. */
+export async function markSeen(id: string) {
+  const db = await getDb()
+  await db.update(sites).set({ seenAt: new Date() }).where(eq(sites.id, id))
 }
 
 export async function deleteSite(id: string) {

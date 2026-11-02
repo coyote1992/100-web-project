@@ -1,6 +1,6 @@
 # Hundred
 
-A project-management view of the speculative website experiment: 5 verticals, 20 firms each. **ChatGPT does the admin** (adds firms, syncs the Gmail inbox, pulls out what people say, moves sites along). **This app is where you see it all**, and where you tick, copy and write lessons.
+A project-management view of the speculative website experiment, now focused on **tennis clubs only**. **ChatGPT does the admin** (adds clubs, syncs the Gmail inbox, pulls out what people say, moves clubs along). **This app is where you see it all**: one dashboard, the club pages, templates and settings.
 
 ## How it fits together
 
@@ -13,15 +13,14 @@ You, in a ChatGPT chat or Work session
 Gmail (outreach inbox), read by ChatGPT during the 30-minute sweep
 ```
 
-- **Verticals** (you): name, plus the two reference sites, pasted by hand.
-- **Sites** (the plugin adds them): one page per firm. Each page has the email conversation (read-only), what ChatGPT extracted from it (call time, objections, questions, interest), the next step, a **copy-ready build prompt** for Claude Code, and a place for your lessons.
-- **Overview**: next steps appear on their own from each site's stage and the clock, grouped by kind of job (replies to rate, send the site, calls to make…). Record what happened and the site moves on. You can add your own tasks too.
-- **Templates**: the build prompt, the send-the-site email, the call-scheduling email, and the two timing values. The plugin reads them when it drafts an email.
-- **Insights**: funnel, reply and positive rates with the sample size next to them, does asking first help, reply timing, pace, by vertical, by opening question, where sites are lost, and what people objected to.
+- **Dashboard**: a donut of every club by stage (Question sent, Response received, Site sent, Site reply, Call scheduled, Order received; Not contacted and Lost appear only when used). Click a stage to filter the list. Each club row has its stage (change it from the dropdown), a four-way call switch (not called, successfully called, unsuccessfully called, got callback) and a message icon while a reply is unopened.
+- **Club pages** (the plugin adds clubs): the stage and call outcome, the email conversation (read-only), what ChatGPT extracted from it, a **copy-ready build prompt** for Claude Code, the demo link and zip, call time and notes, details and your lessons. Opening the page clears its unread mark.
+- **Templates**: the two tennis reference sites (and reference zips), the build prompt, the send-the-site email, the call-scheduling email, and the two timing values. The plugin reads them when it drafts an email.
+- Clubs from other verticals stay in the database but are hidden everywhere, the plugin included. Settings → Export still includes them.
 
 ## The plugin
 
-Hundred exposes an **MCP server at `/mcp`** (Streamable HTTP) with 20 tools: add firms, list/get/update/delete sites, log emails, record extracted notes, tasks, verticals, templates, overview, mailbox-sync stamp, and `get_guide` (the operating manual). Anything you can do in the UI the plugin can do, plus the parts only ChatGPT can do (reading Gmail).
+Hundred exposes an **MCP server at `/mcp`** (Streamable HTTP) with tools to add clubs, list/get/update/delete them (stage, call outcome), log emails, record extracted notes, tasks, the reference sites, templates, zips, overview, mailbox-sync stamp, and `get_guide` (the operating manual). Anything you can do in the UI the plugin can do, plus the parts only ChatGPT can do (reading Gmail).
 
 **Sign-in** is OAuth 2.1 (authorization code + PKCE, dynamic client registration, refresh tokens), built into the app: `/.well-known/oauth-*`, `/oauth/authorize`, `/oauth/token`, `/oauth/register`. You approve ChatGPT once with `APP_PASSWORD`. Changing `API_TOKEN` signs everything out.
 
@@ -38,7 +37,7 @@ Settings also offers a **plugin package (.zip)**: `.codex-plugin/plugin.json`, `
 
 ## The flow
 
-`new → question sent → (replied) → site sent → (replied → positive) → scheduling a call → call scheduled → called → proposal → paid`, with *closed* possible anywhere. If the question stays quiet for `siteFollowUpDays` (4) the site goes out anyway. If the site stays quiet for `callAfterSiteDays` (3), a call task appears.
+`new → question sent → (replied) → site sent → (replied → positive) → scheduling a call → call scheduled → called → proposal → paid`, with *closed* possible anywhere. If the question stays quiet for `siteFollowUpDays` (4) the site goes out anyway. If the site stays quiet for `callAfterSiteDays` (3), it's time to call. The dashboard folds these into its six stages.
 
 ## Run it
 
@@ -64,7 +63,7 @@ The app talks to Supabase over HTTPS (its REST API), not a direct database conne
 
 `vercel.json` pins functions to Paris (`cdg1`), next to a Supabase project in eu-west-3. Change it if yours is elsewhere.
 
-After changing `src/db/schema.ts` run `npm run db:generate`, then run the new `supabase/setup.sql` again in Supabase.
+After changing `src/db/schema.ts` run `npm run db:generate`. New columns on an existing Supabase database are added by the app itself on the first request after a deploy (the `UPGRADES` list in `src/db/index.ts`); add them there too. Fresh databases get them from `supabase/setup.sql`.
 
 ## Where things live
 

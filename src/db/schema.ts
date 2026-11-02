@@ -5,7 +5,7 @@ const id = () => uuid("id").primaryKey().defaultRandom()
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" })
 const createdAt = () => ts("created_at").notNull().default(sql`now()`)
 
-import type { BuildState, ExtractKind, Stage } from "../lib/flow"
+import type { BuildState, CallStatus, ExtractKind, Stage } from "../lib/flow"
 
 export const verticals = pgTable("verticals", {
   id: id(),
@@ -44,6 +44,10 @@ export const sites = pgTable(
     callNotes: text("call_notes").notNull().default(""),
     lostReason: text("lost_reason").notNull().default(""),
     dealValue: integer("deal_value"),
+    /** How the phone call went, set by hand. */
+    callStatus: text("call_status").$type<CallStatus>().notNull().default("none"),
+    /** When the site page was last opened. Replies logged after this show as unread. */
+    seenAt: ts("seen_at"),
     createdAt: createdAt(),
     updatedAt: ts("updated_at").notNull().default(sql`now()`),
   },

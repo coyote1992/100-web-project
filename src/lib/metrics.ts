@@ -1,5 +1,5 @@
 import type { Extract, FlowEvent, Lesson, Message, Site, Task, Vertical } from "@/db/schema"
-import { nextSteps, statusOf, type Stage, type Status, type Step, type Timing } from "./flow"
+import { boardOf, nextSteps, statusOf, type BoardKey, type Stage, type Status, type Step, type Timing } from "./flow"
 import type { Templates } from "./templates"
 
 export type World = {
@@ -35,6 +35,10 @@ export type SiteRow = Site & {
   lastActivityAt: Date
   lastMessage: Message | undefined
   firstContactAt: Date | null
+  /** Which of the dashboard's stages it sits in. */
+  board: BoardKey
+  /** A reply was logged after the site page was last opened. */
+  unread: boolean
   /** Time of the first event at a stage, or undefined. */
   at: (s: Stage) => Date | undefined
 }
@@ -78,6 +82,8 @@ export function buildRows(world: World, now = new Date()): SiteRow[] {
       lastActivityAt: new Date(Math.max(...stamps)),
       lastMessage: messages.at(-1),
       firstContactAt: contact?.at ?? null,
+      board: boardOf(s.stage),
+      unread: messages.some((m) => m.direction === "in" && (!s.seenAt || m.createdAt.getTime() > s.seenAt.getTime())),
       at: (st: Stage) => first.get(st),
     }
   })

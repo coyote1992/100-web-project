@@ -4,15 +4,14 @@ import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { NAV } from "./nav"
-import { StatusDot } from "./status"
+import { StageSwatch } from "./stage"
 import type { Lookup } from "./providers"
 import { SunMoonIcon } from "lucide-react"
-import type { Status } from "@/lib/flow"
+import { BOARD_LABEL } from "@/lib/flow"
 
 export function CommandMenu({ open, onOpenChange, lookup }: { open: boolean; onOpenChange: (o: boolean) => void; lookup: Lookup }) {
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
-  const vName = new Map(lookup.verticals.map((v) => [v.id, v.name]))
 
   const go = (fn: () => void) => {
     onOpenChange(false)
@@ -20,9 +19,9 @@ export function CommandMenu({ open, onOpenChange, lookup }: { open: boolean; onO
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Jump to" description="Search sites, pages and actions" className="sm:max-w-xl">
+    <CommandDialog open={open} onOpenChange={onOpenChange} title="Jump to" description="Search clubs and pages" className="sm:max-w-xl">
       <Command>
-      <CommandInput placeholder="Search sites, pages, actions…" />
+      <CommandInput placeholder="Search clubs, pages…" />
       <CommandList className="max-h-[min(24rem,60vh)]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
         <CommandGroup heading="Actions">
@@ -31,16 +30,16 @@ export function CommandMenu({ open, onOpenChange, lookup }: { open: boolean; onO
             Toggle dark mode
           </CommandItem>
         </CommandGroup>
-        <CommandGroup heading="Sites">
+        <CommandGroup heading="Clubs">
           {lookup.sites.map((s) => (
             <CommandItem
               key={s.id}
-              value={`${s.name} ${s.city} ${vName.get(s.verticalId) ?? ""}`}
+              value={`${s.name} ${s.city}`}
               onSelect={() => go(() => router.push(`/sites/${s.id}`))}
             >
-              <StatusDot status={s.status as Status} className="mx-1" />
+              <StageSwatch stage={s.board} className="mx-1" />
               <span className="truncate">{s.name}</span>
-              <span className="ml-auto truncate text-xs text-muted-foreground">{vName.get(s.verticalId)}</span>
+              <span className="ml-auto truncate text-xs text-muted-foreground">{BOARD_LABEL[s.board]}</span>
             </CommandItem>
           ))}
         </CommandGroup>

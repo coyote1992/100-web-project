@@ -3,7 +3,7 @@ import { z } from "zod"
 import * as d from "./domain"
 import { getWorld } from "./data"
 import { buildRows, funnel, rates, taskItems, timingOf, type SiteRow } from "./metrics"
-import { BUILD_STATES, EXTRACT_KINDS, STAGES, STAGE_LABEL } from "./flow"
+import { BOARD_LABEL, BUILD_STATES, CALL_LABEL, CALL_STATUSES, EXTRACT_KINDS, STAGES, STAGE_LABEL } from "./flow"
 import { fillTemplate, PLACEHOLDERS } from "./templates"
 import { guide } from "./guide"
 import { taskList } from "./api"
@@ -47,7 +47,7 @@ async function resolveTarget(a: Target) {
     return { owner: { kind: "site" as const, id: r.id }, label: r.name, page: `/sites/${r.id}`, arg: `site="${r.name}"` }
   }
   const v = await d.findVertical(a.vertical!)
-  return { owner: { kind: "vertical" as const, id: v.id }, label: v.name, page: `/verticals/${v.id}`, arg: `vertical="${v.name}"` }
+  return { owner: { kind: "vertical" as const, id: v.id }, label: v.name, page: `/templates`, arg: `vertical="${v.name}"` }
 }
 
 async function resolveSite(ref: string): Promise<SiteRow> {
@@ -71,7 +71,11 @@ function compact(r: SiteRow) {
     email: r.email,
     stage: r.stage,
     stageLabel: STAGE_LABEL[r.stage],
+    dashboardStage: BOARD_LABEL[r.board],
     stageSince: iso(r.stageAt),
+    callStatus: r.callStatus,
+    callStatusLabel: CALL_LABEL[r.callStatus],
+    unreadReply: r.unread,
     build: r.build,
     demoUrl: r.demoUrl || null,
     callAt: iso(r.callAt),
@@ -187,13 +191,13 @@ export const TOOLS: Tool[] = [
   {
     name: "add_sites",
     title: "Add firms",
-    description: "Adds one or many firms to a vertical; each becomes a site page. The vertical must already exist (see list_verticals). Firms already there (same website or email in that vertical) are skipped.",
+    description: "Adds one or many tennis clubs; each becomes a site page on the dashboard. Clubs already there (same website or email) are skipped.",
     input: z.object({
       sites: z
         .array(
           z.object({
             name: z.string().min(1),
-            vertical: z.string().min(1).describe("Exact vertical name"),
+            vertical: z.string().optional().describe("Leave out: the app tracks tennis only."),
             oldSiteUrl: z.string().optional().describe("The firm's current website"),
             email: z.string().optional(),
             city: z.string().optional(),
@@ -204,8 +208,10 @@ export const TOOLS: Tool[] = [
         .min(1)
         .max(100),
     }),
-    run: async (a: { sites: d.SiteInput[] }) => {
-      const results = await d.createSites(a.sites)
+    run: async (a: { sites: (Omit<d.SiteInput, "vertical"> & { vertical?: string })[] }) => {
+      const focus = (await getWorld()).verticals[0]
+      if (!focus) throw new d.DomainError("There is no tennis vertical yet. Open the app and click Start with tennis.", 422)
+      const results = await d.createSites(a.sites.map((x) => ({ ...x, vertical: focus.id })))
       return { created: results.filter((r) => r.created).length, results }
     },
   },
@@ -223,6 +229,7 @@ export const TOOLS: Tool[] = [
       callNotes: z.string().optional(),
       build: z.enum(BUILD_STATES).optional(),
       demoUrl: z.string().optional().describe("Saving a demo URL marks the site ready."),
+      callStatus: z.enum(CALL_STATUSES).optional().describe("How the phone call went: none (not called), reached (successfully called), missed (unsuccessfully called), callback (they called back)."),
       questionVariant: z.string().optional(),
       name: z.string().optional(),
       city: z.string().optional(),
@@ -408,8 +415,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_verticals",
-    title: "List verticals",
-    description: "The verticals with their reference sites, site counts and targets.",
+    title: "Show the tennis vertical",
+    description: "The tennis vertical with its two reference sites, site count and target. The app tracks tennis only.",
     input: z.object({}),
     readOnly: true,
     run: async () => {
@@ -418,19 +425,9 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "create_vertical",
-    title: "Create a vertical",
-    description: "Creates a vertical, optionally with its two reference sites. Only when the user asks.",
-    input: z.object({ name: z.string().min(1), reference1: z.string().optional(), reference2: z.string().optional() }),
-    run: async (a: { name: string; reference1?: string; reference2?: string }) => {
-      const v = await d.createVertical(a)
-      return { id: v.id, name: v.name }
-    },
-  },
-  {
     name: "update_vertical",
     title: "Update a vertical",
-    description: "Changes a vertical's name, its two reference sites or its target number of sites.",
+    description: "Changes the tennis vertical's two reference sites (used in every build prompt), its name or its target number of clubs.",
     input: z.object({ vertical: z.string().min(1).describe("Vertical name or id"), name: z.string().optional(), reference1: z.string().optional(), reference2: z.string().optional(), target: z.number().int().min(1).max(500).optional() }),
     idempotent: true,
     run: async (a: { vertical: string; name?: string; reference1?: string; reference2?: string; target?: number }) => {

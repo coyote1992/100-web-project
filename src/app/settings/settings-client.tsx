@@ -26,7 +26,7 @@ export function DataActions({ hasData }: { hasData: boolean }) {
             <DialogTitle>{confirm === "demo" ? "Replace everything with demo data?" : "Delete all data?"}</DialogTitle>
             <DialogDescription>
               {confirm === "demo"
-                ? "Your verticals, sites, emails, notes and templates are wiped and replaced with about 30 fictional firms."
+                ? "Your clubs, emails, notes and templates are wiped (other verticals too) and replaced with about 30 fictional firms."
                 : "Every vertical, site, email, note, lesson and template is deleted. Export first if you might want it back."}
             </DialogDescription>
           </DialogHeader>
@@ -41,7 +41,7 @@ export function DataActions({ hasData }: { hasData: boolean }) {
                 start(async () => {
                   const res = confirm === "demo" ? await loadDemoData() : await clearAllData()
                   if (!res.ok) return void toast.error(res.error)
-                  toast.success(confirm === "demo" ? "Demo data loaded" : "All clear. Time to add your verticals.")
+                  toast.success(confirm === "demo" ? "Demo data loaded" : "All clear.")
                   setConfirm(null)
                 })
               }

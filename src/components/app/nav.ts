@@ -1,10 +1,7 @@
-import { ChartLineIcon, FileTextIcon, LayersIcon, LayoutGridIcon, Settings2Icon, TableIcon } from "lucide-react"
+import { FileTextIcon, LayoutGridIcon, Settings2Icon } from "lucide-react"
 
 export const NAV = [
-  { href: "/", label: "Overview", icon: LayoutGridIcon },
-  { href: "/sites", label: "Sites", icon: TableIcon },
-  { href: "/verticals", label: "Verticals", icon: LayersIcon },
-  { href: "/insights", label: "Insights", icon: ChartLineIcon },
+  { href: "/", label: "Dashboard", icon: LayoutGridIcon },
   { href: "/templates", label: "Templates", icon: FileTextIcon },
   { href: "/settings", label: "Settings", icon: Settings2Icon },
 ] as const

@@ -102,6 +102,18 @@
   --won-soft: oklch(0.965 0.025 292);
   --won-line: oklch(0.76 0.11 292);
 
+  /* The dashboard's six stages, in pipeline order: categorical slots 1–6 of the dataviz palette.
+     Validated as neighbours (including the donut's wrap-around) for colour-blind separation in both modes.
+     Light-mode aqua, yellow and pink sit under 3:1 on paper, so every swatch carries its label beside it. */
+  --stage-1: #2a78d6;
+  --stage-2: #eb6834;
+  --stage-3: #1baf7a;
+  --stage-4: #eda100;
+  --stage-5: #e87ba4;
+  --stage-6: #008300;
+  --stage-idle: oklch(0.87 0.008 80);
+  --stage-lost: oklch(0.68 0.012 70);
+
   --viz-hours: #c97f14;
   --viz-pos: #0d844c;
   --chart-1: oklch(0.76 0.15 72);
@@ -152,6 +164,15 @@
   --move-line: oklch(0.52 0.09 80);
   --won-soft: oklch(0.27 0.05 292);
   --won-line: oklch(0.55 0.13 292);
+
+  --stage-1: #3987e5;
+  --stage-2: #d95926;
+  --stage-3: #199e70;
+  --stage-4: #c98500;
+  --stage-5: #d55181;
+  --stage-6: #008300;
+  --stage-idle: oklch(0.36 0.008 70);
+  --stage-lost: oklch(0.52 0.012 70);
 
   --viz-hours: oklch(0.72 0.14 70);
   --viz-pos: oklch(0.66 0.13 155);

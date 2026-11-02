@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { getWorld } from "@/lib/data"
 import { PLACEHOLDERS } from "@/lib/templates"
 import { Page, PageHeader } from "@/components/app/page"
-import { TemplateEditor, TimingFields } from "./templates-client"
+import { listPackages } from "@/lib/domain"
+import { PackageUpload } from "@/components/app/package-upload"
+import { ReferenceFields, TemplateEditor, TimingFields } from "./templates-client"
 
 export const metadata: Metadata = { title: "Templates" }
 
@@ -28,16 +30,27 @@ function Block({ title, description, placeholders, children }: { title: string; 
 }
 
 export default async function TemplatesPage() {
-  const { templates: t, customised } = await getWorld()
+  const { templates: t, customised, verticals } = await getWorld()
+  const focus = verticals[0]
+  const pkgs = focus ? await listPackages({ kind: "vertical", id: focus.id }).catch(() => []) : []
   return (
     <Page className="max-w-[1040px]">
-      <PageHeader title="Templates" description="The words and the timing behind the flow. ChatGPT reads these from the API when it drafts an email, and each site page fills them in for that firm." />
+      <PageHeader title="Templates" description="The words, references and timing behind the flow. ChatGPT reads them when it drafts an email, and each club's page fills them in." />
 
-      <Block title="Follow-up timing" description="How long silence lasts before the next step turns up on the Overview. ChatGPT reads these too.">
+      {focus && (
+        <Block title="Reference sites" description="The two tennis sites Claude Code is pointed at in every build prompt. Zips here are extra material for the build, such as a style kit.">
+          <div className="grid gap-6">
+            <ReferenceFields id={focus.id} reference1={focus.reference1} reference2={focus.reference2} />
+            <PackageUpload kind="vertical" id={focus.id} packages={pkgs} title="Reference packages (zip)" />
+          </div>
+        </Block>
+      )}
+
+      <Block title="Follow-up timing" description="How long silence lasts before ChatGPT takes the next step. It reads these from the app.">
         <TimingFields siteFollowUpDays={t.siteFollowUpDays} callAfterSiteDays={t.callAfterSiteDays} />
       </Block>
 
-      <Block title="Website build prompt" description="Copied from each site page and handed to Claude Code as is. The old site and the vertical's two reference sites are filled in for you." placeholders={PLACEHOLDERS.buildPrompt}>
+      <Block title="Website build prompt" description="Copied from each site page and handed to Claude Code as is. The club's old site and the two reference sites are filled in for you." placeholders={PLACEHOLDERS.buildPrompt}>
         <TemplateEditor field="buildPrompt" value={t.buildPrompt} customised={customised.buildPrompt} rows={18} />
       </Block>
 

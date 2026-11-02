@@ -6,10 +6,43 @@ import { getDb, schema } from "@/db"
 import type { World } from "./metrics"
 import { DEFAULT_TEMPLATES, type Templates } from "./templates"
 
+/**
+ * Everything the app shows, narrowed to the one vertical it focuses on (tennis).
+ * Sites in other verticals stay in the database untouched; they just aren't shown or offered to ChatGPT.
+ */
 export const getWorld = cache(async function getWorld(): Promise<World> {
   await connection()
-  return read()
+  return focusOn(await read())
 })
+
+/** Every row, all verticals included. For backups. */
+export async function getEverything(): Promise<World> {
+  await connection()
+  return read()
+}
+
+/** The tennis vertical: the first whose name mentions tennis (or tenisz/padel), else the first one. */
+export function focusVertical<T extends { name: string }>(verticals: T[]): T | undefined {
+  return verticals.find((v) => /tenni|tenisz|padel/i.test(v.name)) ?? verticals[0]
+}
+
+function focusOn(w: World): World {
+  const focus = focusVertical(w.verticals)
+  if (!focus) return w
+  const sites = w.sites.filter((s) => s.verticalId === focus.id)
+  const ids = new Set(sites.map((s) => s.id))
+  const keep = <T extends { siteId: string | null }>(xs: T[]) => xs.filter((x) => !x.siteId || ids.has(x.siteId))
+  return {
+    ...w,
+    verticals: [focus],
+    sites,
+    events: keep(w.events),
+    messages: keep(w.messages),
+    extracts: keep(w.extracts),
+    lessons: keep(w.lessons),
+    tasks: keep(w.tasks),
+  }
+}
 
 async function read(): Promise<World> {
   const db = await getDb()

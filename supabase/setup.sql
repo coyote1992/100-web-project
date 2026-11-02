@@ -22,6 +22,8 @@ do $do$ begin CREATE INDEX "messages_site_idx" ON "messages" USING btree ("site_
 do $do$ begin CREATE UNIQUE INDEX "messages_external_idx" ON "messages" USING btree ("external_id"); exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 do $do$ begin CREATE INDEX "sites_vertical_idx" ON "sites" USING btree ("vertical_id"); exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 do $do$ begin CREATE INDEX "sites_email_idx" ON "sites" USING btree ("email"); exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
+do $do$ begin ALTER TABLE "sites" ADD COLUMN "call_status" text DEFAULT 'none' NOT NULL; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
+do $do$ begin ALTER TABLE "sites" ADD COLUMN "seen_at" timestamp with time zone; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 
 -- Nothing is readable with the public key: only the server's service key gets in.
 alter table public."events" enable row level security;

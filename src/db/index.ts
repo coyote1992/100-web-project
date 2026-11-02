@@ -62,9 +62,30 @@ async function remote(sql: string, params: unknown[], method: "all" | "execute")
   }
 }
 
+/**
+ * Columns added after the first setup. A Supabase database gets them on the first request after a deploy,
+ * so nobody has to paste SQL again. Fresh databases get them from supabase/setup.sql.
+ */
+const UPGRADES: { column: string; sql: string }[] = [
+  { column: "call_status", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "call_status" text DEFAULT 'none' NOT NULL` },
+  { column: "seen_at", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "seen_at" timestamp with time zone` },
+]
+
+async function upgrade() {
+  const { rows } = await remote(
+    `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'sites'`,
+    [],
+    "all",
+  )
+  const have = new Set((rows as unknown[][]).map((r) => String(r[0])))
+  if (!have.size) return // no tables yet: the setup screen takes it from here
+  for (const u of UPGRADES) if (!have.has(u.column)) await remote(u.sql, [], "execute")
+}
+
 async function connect(): Promise<DB> {
   if (dbKind === "supabase") {
     const { drizzle } = await import("drizzle-orm/pg-proxy")
+    await upgrade()
     return drizzle(remote as never, { schema })
   }
   const { mkdirSync } = await import("node:fs")
