@@ -6,38 +6,116 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenu
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { BOARD, BOARD_EXTRA, BOARD_LABEL, CALL_LABEL, CALL_STATUSES, type BoardKey, type CallStatus } from "@/lib/flow"
 import { cn } from "@/lib/utils"
+import { STAGE_COLOR } from "@/lib/stage-colors"
 
-export const STAGE_COLOR: Record<BoardKey, string> = {
-  not_contacted: "var(--stage-idle)",
-  question_sent: "var(--stage-1)",
-  response: "var(--stage-2)",
-  site_sent: "var(--stage-3)",
-  site_reply: "var(--stage-4)",
-  call: "var(--stage-5)",
-  order: "var(--stage-6)",
-  lost: "var(--stage-lost)",
-}
+export { STAGE_COLOR }
+
+const SIX = BOARD.map((b) => b.key)
+const TRACK = "color-mix(in oklch, var(--foreground) 9%, transparent)"
 
 export function StageSwatch({ stage, className }: { stage: BoardKey; className?: string }) {
-  return <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-[3px]", className)} style={{ background: STAGE_COLOR[stage] }} />
+  return <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full", className)} style={{ background: STAGE_COLOR[stage] }} />
 }
 
-/** The stage as a swatch and a word. Click to move the site to another stage. */
-export function StageMenu({ stage, onChange, disabled, className }: { stage: BoardKey; onChange: (s: BoardKey) => void; disabled?: boolean; className?: string }) {
+/** Linear-style status mark: a ring in the stage colour that fills like a pie as the club moves along. */
+export function StagePie({ stage, size = 18 }: { stage: BoardKey; size?: number }) {
+  const c = STAGE_COLOR[stage]
+  const cx = size / 2
+  const r = cx - 1.5
+  if (stage === "not_contacted")
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle cx={cx} cy={cx} r={r} fill="none" strokeWidth={1.5} strokeDasharray="2.2 2.2" style={{ stroke: "var(--muted-foreground)" }} />
+      </svg>
+    )
+  if (stage === "lost")
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle cx={cx} cy={cx} r={r} style={{ fill: c }} />
+        <path d={`M${cx - 2.6} ${cx - 2.6}l5.2 5.2M${cx + 2.6} ${cx - 2.6}l-5.2 5.2`} strokeWidth={1.5} strokeLinecap="round" style={{ stroke: "var(--background)" }} />
+      </svg>
+    )
+  const inner = (r - 2.5) / 2
+  const C = 2 * Math.PI * inner
+  const frac = (SIX.indexOf(stage as (typeof SIX)[number]) + 1) / SIX.length
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+      <circle cx={cx} cy={cx} r={r} fill="none" strokeWidth={1.5} style={{ stroke: c }} />
+      <circle cx={cx} cy={cx} r={inner} fill="none" strokeWidth={inner * 2} strokeDasharray={`${C * frac} ${C}`} transform={`rotate(-90 ${cx} ${cx})`} style={{ stroke: c }} />
+    </svg>
+  )
+}
+
+/** One club's progress: six arcs around a ring, coloured up to its stage. */
+export function StageRing({ stage, size = 56 }: { stage: BoardKey; size?: number }) {
+  const idx = SIX.indexOf(stage as (typeof SIX)[number])
+  const r = size / 2 - 4
+  const C = 2 * Math.PI * r
+  const part = C / 6
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={BOARD_LABEL[stage]}>
+      {SIX.map((k, i) => (
+        <circle
+          key={k}
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={size > 40 ? 6 : 4}
+          strokeDasharray={`${part - 3} ${C}`}
+          strokeDashoffset={-i * part}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ stroke: stage === "lost" ? STAGE_COLOR.lost : i <= idx ? STAGE_COLOR[k] : TRACK }}
+        />
+      ))}
+    </svg>
+  )
+}
+
+/**
+ * Move a club to another stage. The trigger is the club's stage circle (in lists), its name with a chevron,
+ * or the word "Change" (on the club page).
+ */
+export function StageMenu({
+  stage,
+  onChange,
+  variant = "pill",
+  disabled,
+  className,
+}: {
+  stage: BoardKey
+  onChange: (s: BoardKey) => void
+  variant?: "pill" | "icon" | "link"
+  disabled?: boolean
+  className?: string
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={disabled}
         aria-label={`Stage: ${BOARD_LABEL[stage]}. Change`}
         className={cn(
-          "group/stage pressable inline-flex h-8 max-w-full items-center gap-2 rounded-lg px-2 text-sm whitespace-nowrap hover:bg-accent data-[popup-open]:bg-accent",
-          stage === "lost" && "text-muted-foreground",
+          "group/stage pressable inline-flex items-center whitespace-nowrap data-[popup-open]:bg-accent",
+          variant === "icon" && "size-8 justify-center rounded-lg hover:bg-accent",
+          variant === "pill" && "h-8 max-w-full gap-2 rounded-lg px-2 text-sm hover:bg-accent",
+          variant === "link" && "h-7 gap-1 rounded-md px-1.5 -ml-1.5 text-sm font-medium text-court hover:bg-accent",
           className,
         )}
       >
-        <StageSwatch stage={stage} />
-        <span className="truncate">{BOARD_LABEL[stage]}</span>
-        <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/stage:opacity-100 group-focus-visible/stage:opacity-100 group-data-[popup-open]/stage:opacity-100" />
+        {variant === "icon" && <StagePie stage={stage} />}
+        {variant === "pill" && (
+          <>
+            <StageSwatch stage={stage} />
+            <span className="truncate">{BOARD_LABEL[stage]}</span>
+            <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          </>
+        )}
+        {variant === "link" && (
+          <>
+            Change
+            <ChevronDownIcon className="size-3.5" />
+          </>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-52">
         <DropdownMenuRadioGroup value={stage} onValueChange={(v) => v !== stage && onChange(v as BoardKey)}>
@@ -60,54 +138,68 @@ export function StageMenu({ stage, onChange, disabled, className }: { stage: Boa
   )
 }
 
-const CALL_ICON: Record<CallStatus, React.ComponentType<{ className?: string }>> = {
+export const CALL_ICON: Record<CallStatus, React.ComponentType<{ className?: string }>> = {
   none: MinusIcon,
   reached: PhoneCallIcon,
   missed: PhoneMissedIcon,
   callback: PhoneIncomingIcon,
 }
 
-const CALL_ON: Record<CallStatus, string> = {
-  none: "bg-muted text-foreground",
-  reached: "bg-positive/15 text-positive",
-  missed: "bg-negative/12 text-negative",
-  callback: "bg-st-wait/18 text-foreground",
+/** Text colour per call result. Each always comes with its icon and words, never colour alone. */
+export const CALL_TONE: Record<CallStatus, string> = {
+  none: "text-muted-foreground",
+  reached: "text-positive",
+  missed: "text-negative",
+  callback: "text-court",
 }
 
-/**
- * Four-way switch for how the call went. Icons with tooltips on the dashboard; icons and words on a site page.
- * The selected option keeps its colour and its label in the accessible name, so colour never stands alone.
- */
-export function CallToggle({ value, onChange, labels = false, disabled }: { value: CallStatus; onChange: (v: CallStatus) => void; labels?: boolean; disabled?: boolean }) {
+const nextCall = (v: CallStatus) => CALL_STATUSES[(CALL_STATUSES.indexOf(v) + 1) % CALL_STATUSES.length]
+
+/** Tap to step through the four call results. */
+export function CallCycle({ value, onChange, className }: { value: CallStatus; onChange: (v: CallStatus) => void; className?: string }) {
+  const Icon = CALL_ICON[value]
   return (
-    <div role="radiogroup" aria-label="Call" className={cn("inline-flex items-center gap-0.5 rounded-lg border bg-background p-0.5", labels && "flex-wrap")}>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={() => onChange(nextCall(value))}
+            aria-label={`Call: ${CALL_LABEL[value]}. Tap for ${CALL_LABEL[nextCall(value)].toLowerCase()}`}
+            className={cn("pressable inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] whitespace-nowrap hover:bg-accent", value !== "none" && "font-medium", CALL_TONE[value], className)}
+          />
+        }
+      >
+        <Icon className="size-4 shrink-0" />
+        {CALL_LABEL[value]}
+      </TooltipTrigger>
+      <TooltipContent>Tap to change</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** The four call results as a list to pick from, as on the club page. */
+export function CallOptions({ value, onChange }: { value: CallStatus; onChange: (v: CallStatus) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Call" className="grid gap-1">
       {CALL_STATUSES.map((s) => {
         const Icon = CALL_ICON[s]
         const on = value === s
-        const button = (
+        return (
           <button
+            key={s}
             type="button"
             role="radio"
             aria-checked={on}
-            aria-label={labels ? undefined : CALL_LABEL[s]}
-            disabled={disabled}
             onClick={() => !on && onChange(s)}
             className={cn(
-              "pressable inline-flex h-7 items-center justify-center gap-1.5 rounded-md text-xs disabled:opacity-60",
-              labels ? "px-2.5" : "w-7",
-              on ? cn(CALL_ON[s], "font-medium") : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              "pressable flex h-9 items-center gap-2 rounded-[10px] border px-2.5 text-left text-[13px]",
+              on ? "border-court font-semibold text-foreground shadow-[inset_3px_0_0_var(--court)]" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
-            <Icon className="size-3.5" />
-            {labels && CALL_LABEL[s]}
+            <Icon className={cn("size-4 shrink-0", on && CALL_TONE[s])} />
+            {CALL_LABEL[s]}
           </button>
-        )
-        if (labels) return <React.Fragment key={s}>{button}</React.Fragment>
-        return (
-          <Tooltip key={s}>
-            <TooltipTrigger render={button} />
-            <TooltipContent>{CALL_LABEL[s]}</TooltipContent>
-          </Tooltip>
         )
       })}
     </div>

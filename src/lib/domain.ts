@@ -2,7 +2,7 @@ import "server-only"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import type { Site } from "@/db/schema"
-import { BUILD_STATES, CALL_STATUSES, EXTRACT_KINDS, isStage, type BuildState, type CallStatus, type ExtractKind, type Stage } from "./flow"
+import { BUILD_STATES, CALL_STATUSES, CONTACT_ROLES, EXTRACT_KINDS, PHONE_OWNERS, isStage, type BuildState, type CallStatus, type ContactRole, type ExtractKind, type PhoneOwner, type Stage } from "./flow"
 import { host } from "./format"
 import { removeObject, signedDownload, signedUpload, objectSize, StorageError } from "./storage"
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS } from "./templates"
@@ -53,6 +53,8 @@ export type SiteInput = {
   email?: string
   phone?: string
   contactName?: string
+  phoneOwner?: PhoneOwner
+  contactRole?: ContactRole
 }
 
 /** Vertical by id or (case-insensitive) name. */
@@ -96,6 +98,8 @@ export async function createSites(inputs: SiteInput[]) {
         email: input.email?.trim() ?? "",
         phone: input.phone?.trim() ?? "",
         contactName: input.contactName?.trim() ?? "",
+        phoneOwner: PHONE_OWNERS.includes(input.phoneOwner!) ? input.phoneOwner : "unknown",
+        contactRole: CONTACT_ROLES.includes(input.contactRole!) ? input.contactRole : "unknown",
         stage: "new",
         stageAt: now,
       })
@@ -172,6 +176,8 @@ export type SitePatch = Partial<{
   lostReason: string
   dealValue: number | null
   callStatus: CallStatus
+  phoneOwner: PhoneOwner
+  contactRole: ContactRole
   stage: string
   stageAt: string
   note: string
@@ -192,6 +198,14 @@ export async function updateSite(id: string, patch: SitePatch) {
     set.build = patch.build
   } else if (set.demoUrl && site.build !== "ready") set.build = "ready" // a demo link means the site exists
   if (patch.dealValue !== undefined) set.dealValue = patch.dealValue
+  if (patch.phoneOwner !== undefined) {
+    if (!PHONE_OWNERS.includes(patch.phoneOwner)) throw new DomainError(`phoneOwner must be one of ${PHONE_OWNERS.join(", ")}.`)
+    set.phoneOwner = patch.phoneOwner
+  }
+  if (patch.contactRole !== undefined) {
+    if (!CONTACT_ROLES.includes(patch.contactRole)) throw new DomainError(`contactRole must be one of ${CONTACT_ROLES.join(", ")}.`)
+    set.contactRole = patch.contactRole
+  }
   if (patch.callStatus !== undefined) {
     if (!CALL_STATUSES.includes(patch.callStatus)) throw new DomainError(`callStatus must be one of ${CALL_STATUSES.join(", ")}.`)
     set.callStatus = patch.callStatus

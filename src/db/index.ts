@@ -69,6 +69,8 @@ async function remote(sql: string, params: unknown[], method: "all" | "execute")
 const UPGRADES: { column: string; sql: string }[] = [
   { column: "call_status", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "call_status" text DEFAULT 'none' NOT NULL` },
   { column: "seen_at", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "seen_at" timestamp with time zone` },
+  { column: "phone_owner", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "phone_owner" text DEFAULT 'unknown' NOT NULL` },
+  { column: "contact_role", sql: `ALTER TABLE "sites" ADD COLUMN IF NOT EXISTS "contact_role" text DEFAULT 'unknown' NOT NULL` },
 ]
 
 async function upgrade() {

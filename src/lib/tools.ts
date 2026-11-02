@@ -3,7 +3,7 @@ import { z } from "zod"
 import * as d from "./domain"
 import { getWorld } from "./data"
 import { buildRows, funnel, rates, taskItems, timingOf, type SiteRow } from "./metrics"
-import { BOARD_LABEL, BUILD_STATES, CALL_LABEL, CALL_STATUSES, EXTRACT_KINDS, STAGES, STAGE_LABEL } from "./flow"
+import { BOARD_LABEL, BUILD_STATES, CALL_LABEL, CALL_STATUSES, CONTACT_ROLES, EXTRACT_KINDS, PHONE_OWNERS, STAGES, STAGE_LABEL } from "./flow"
 import { fillTemplate, PLACEHOLDERS } from "./templates"
 import { guide } from "./guide"
 import { taskList } from "./api"
@@ -65,6 +65,10 @@ function compact(r: SiteRow) {
     stageSince: iso(r.stageAt),
     callStatus: r.callStatus,
     callStatusLabel: CALL_LABEL[r.callStatus],
+    phone: r.phone || null,
+    phoneOwner: r.phoneOwner,
+    contactName: r.contactName || null,
+    contactRole: r.contactRole,
     unreadReply: r.unread,
     build: r.build,
     demoUrl: r.demoUrl || null,
@@ -193,6 +197,8 @@ export const TOOLS: Tool[] = [
             city: z.string().optional(),
             phone: z.string().optional(),
             contactName: z.string().optional(),
+            phoneOwner: z.enum(PHONE_OWNERS).optional().describe("Whose number it is: person (a specific person, named in contactName) or reception."),
+            contactRole: z.enum(CONTACT_ROLES).optional().describe("Who contactName is at the club: owner or trainer."),
           }),
         )
         .min(1)
@@ -219,6 +225,8 @@ export const TOOLS: Tool[] = [
       callNotes: z.string().optional(),
       build: z.enum(BUILD_STATES).optional(),
       demoUrl: z.string().optional().describe("Saving a demo URL marks the site ready."),
+      phoneOwner: z.enum(PHONE_OWNERS).optional().describe("Whose phone number it is: person (the contact named in contactName), reception, or unknown."),
+      contactRole: z.enum(CONTACT_ROLES).optional().describe("Who the contact person is at the club: owner, trainer, or unknown."),
       callStatus: z.enum(CALL_STATUSES).optional().describe("How the phone call went: none (not called), reached (successfully called), missed (unsuccessfully called), callback (they called back)."),
       questionVariant: z.string().optional(),
       name: z.string().optional(),

@@ -148,6 +148,10 @@ export async function seed(db: DB, now = Date.now()) {
         oldSiteUrl: `https://${slug}.example`,
         demoUrl: build === "ready" ? `https://${slug}-demo.vercel.app` : "",
         contactName,
+        // Demo phone numbers in the reserved fictional range, with a mix of who answers.
+        phone: rand() < 0.8 ? `+36 1 555 ${String(1000 + Math.floor(rand() * 8999))}` : "",
+        phoneOwner: contactName ? (rand() < 0.7 ? "person" : "reception") : rand() < 0.5 ? "reception" : "unknown",
+        contactRole: contactName ? (rand() < 0.5 ? "owner" : rand() < 0.7 ? "trainer" : "unknown") : "unknown",
         email: `hello@${slug}.example`,
         stage: finalStage,
         stageAt: new Date(last),

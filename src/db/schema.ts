@@ -5,7 +5,7 @@ const id = () => uuid("id").primaryKey().defaultRandom()
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" })
 const createdAt = () => ts("created_at").notNull().default(sql`now()`)
 
-import type { BuildState, CallStatus, ExtractKind, Stage } from "../lib/flow"
+import type { BuildState, CallStatus, ContactRole, ExtractKind, PhoneOwner, Stage } from "../lib/flow"
 
 export const verticals = pgTable("verticals", {
   id: id(),
@@ -34,6 +34,10 @@ export const sites = pgTable(
     contactName: text("contact_name").notNull().default(""),
     email: text("email").notNull().default(""),
     phone: text("phone").notNull().default(""),
+    /** Whether the phone number reaches a specific person or the reception desk. */
+    phoneOwner: text("phone_owner").$type<PhoneOwner>().notNull().default("unknown"),
+    /** Who the contact person is at the club. */
+    contactRole: text("contact_role").$type<ContactRole>().notNull().default("unknown"),
     stage: text("stage").$type<Stage>().notNull().default("new"),
     /** When the current stage was entered; the follow-up timers count from here. */
     stageAt: ts("stage_at").notNull().default(sql`now()`),

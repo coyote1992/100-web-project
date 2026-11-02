@@ -7,10 +7,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-instrument-serif);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-bricolage);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-heading: var(--font-dm-sans);
+  --color-court: var(--court);
+  --color-ball: var(--ball);
+  --color-soft: var(--soft);
   --color-st-idle: var(--st-idle);
   --color-st-wait: var(--st-wait);
   --color-st-move: var(--st-move);
@@ -68,26 +71,26 @@
 :root {
   --radius: 0.625rem;
 
-  /* Warm paper + ink. Chroma stays low so the status colours carry meaning. */
-  --background: oklch(0.982 0.005 85);
-  --foreground: oklch(0.22 0.012 60);
-  --surface: oklch(0.995 0.003 85);
-  --card: oklch(0.995 0.003 85);
-  --card-foreground: oklch(0.22 0.012 60);
-  --popover: oklch(0.995 0.003 85);
-  --popover-foreground: oklch(0.22 0.012 60);
-  --primary: oklch(0.24 0.014 60);
-  --primary-foreground: oklch(0.975 0.006 85);
-  --secondary: oklch(0.952 0.008 85);
-  --secondary-foreground: oklch(0.24 0.014 60);
-  --muted: oklch(0.955 0.007 85);
-  --muted-foreground: oklch(0.49 0.014 65);
-  --accent: oklch(0.945 0.011 85);
-  --accent-foreground: oklch(0.22 0.012 60);
+  /* Clubhouse: white court, deep court green for actions, ball yellow for "new". */
+  --background: #ffffff;
+  --foreground: #17201b;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #17201b;
+  --popover: #ffffff;
+  --popover-foreground: #17201b;
+  --primary: #1f4d3c;
+  --primary-foreground: #f4f8f3;
+  --secondary: #f3f6f2;
+  --secondary-foreground: #17201b;
+  --muted: #f3f6f2;
+  --muted-foreground: #5e6a62;
+  --accent: #eef2ed;
+  --accent-foreground: #17201b;
   --destructive: oklch(0.56 0.19 27);
-  --border: oklch(0.905 0.009 80);
-  --input: oklch(0.88 0.01 80);
-  --ring: oklch(0.74 0.13 75);
+  --border: #e3e6e1;
+  --input: #d5dbd3;
+  --ring: #1f4d3c;
 
   /* Outreach status — amber is your move, violet is money (from the flow board). */
   --st-idle: oklch(0.8 0.01 75);
@@ -105,6 +108,10 @@
   /* The dashboard's six stages, in pipeline order: categorical slots 1–6 of the dataviz palette.
      Validated as neighbours (including the donut's wrap-around) for colour-blind separation in both modes.
      Light-mode aqua, yellow and pink sit under 3:1 on paper, so every swatch carries its label beside it. */
+  --court: #1f4d3c;
+  --ball: #c5d64a;
+  --soft: #f3f6f2;
+
   --stage-1: #2a78d6;
   --stage-2: #eb6834;
   --stage-3: #1baf7a;
@@ -122,36 +129,36 @@
   --chart-4: oklch(0.64 0.045 245);
   --chart-5: oklch(0.63 0.12 25);
 
-  --sidebar: oklch(0.962 0.008 85);
+  --sidebar: #f3f6f2;
   --sidebar-foreground: oklch(0.3 0.012 60);
   --sidebar-primary: oklch(0.24 0.014 60);
   --sidebar-primary-foreground: oklch(0.975 0.006 85);
   --sidebar-accent: oklch(0.93 0.012 85);
   --sidebar-accent-foreground: oklch(0.22 0.012 60);
-  --sidebar-border: oklch(0.9 0.01 80);
+  --sidebar-border: #e3e6e1;
   --sidebar-ring: oklch(0.74 0.13 75);
 }
 
 .dark {
-  --background: oklch(0.175 0.008 60);
-  --foreground: oklch(0.94 0.008 85);
-  --surface: oklch(0.205 0.009 60);
-  --card: oklch(0.205 0.009 60);
-  --card-foreground: oklch(0.94 0.008 85);
-  --popover: oklch(0.225 0.01 60);
-  --popover-foreground: oklch(0.94 0.008 85);
-  --primary: oklch(0.93 0.01 85);
-  --primary-foreground: oklch(0.2 0.01 60);
-  --secondary: oklch(0.25 0.01 60);
-  --secondary-foreground: oklch(0.94 0.008 85);
-  --muted: oklch(0.24 0.01 60);
-  --muted-foreground: oklch(0.72 0.012 75);
-  --accent: oklch(0.26 0.012 60);
-  --accent-foreground: oklch(0.94 0.008 85);
+  --background: #0f1411;
+  --foreground: #e7ece8;
+  --surface: #151b17;
+  --card: #151b17;
+  --card-foreground: #e7ece8;
+  --popover: #18201b;
+  --popover-foreground: #e7ece8;
+  --primary: #a6d8bb;
+  --primary-foreground: #0f1411;
+  --secondary: #1a221d;
+  --secondary-foreground: #e7ece8;
+  --muted: #1a221d;
+  --muted-foreground: #9aa79e;
+  --accent: #1f2923;
+  --accent-foreground: #e7ece8;
   --destructive: oklch(0.68 0.17 25);
-  --border: oklch(1 0.02 85 / 9%);
-  --input: oklch(1 0.02 85 / 14%);
-  --ring: oklch(0.74 0.13 75);
+  --border: #26302a;
+  --input: #2f3a33;
+  --ring: #a6d8bb;
 
   --st-idle: oklch(0.42 0.01 70);
   --st-wait: oklch(0.66 0.05 245);
@@ -164,6 +171,10 @@
   --move-line: oklch(0.52 0.09 80);
   --won-soft: oklch(0.27 0.05 292);
   --won-line: oklch(0.55 0.13 292);
+
+  --court: #a6d8bb;
+  --ball: #c5d64a;
+  --soft: #172019;
 
   --stage-1: #3987e5;
   --stage-2: #d95926;
@@ -182,13 +193,13 @@
   --chart-4: oklch(0.66 0.05 245);
   --chart-5: oklch(0.62 0.11 25);
 
-  --sidebar: oklch(0.155 0.007 60);
+  --sidebar: #121813;
   --sidebar-foreground: oklch(0.86 0.01 80);
   --sidebar-primary: oklch(0.93 0.01 85);
   --sidebar-primary-foreground: oklch(0.2 0.01 60);
   --sidebar-accent: oklch(0.23 0.01 60);
   --sidebar-accent-foreground: oklch(0.94 0.008 85);
-  --sidebar-border: oklch(1 0.02 85 / 8%);
+  --sidebar-border: #26302a;
   --sidebar-ring: oklch(0.74 0.13 75);
 }
 
@@ -232,8 +243,8 @@
   }
   .display {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
   /* Press feedback for anything clickable (Kowalski: scale on :active). */
   .pressable {

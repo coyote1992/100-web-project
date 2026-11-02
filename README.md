@@ -13,8 +13,8 @@ You, in a ChatGPT chat or Work session
 Gmail (outreach inbox), read by ChatGPT during the 30-minute sweep
 ```
 
-- **Dashboard**: a donut of every club by stage (Question sent, Response received, Site sent, Site reply, Call scheduled, Order received; Not contacted and Lost appear only when used). Click a stage to filter the list. Each club row has its stage (change it from the dropdown), a four-way call switch (not called, successfully called, unsuccessfully called, got callback) and a message icon while a reply is unopened.
-- **Club pages** (the plugin adds clubs): the stage and call outcome, the email conversation (read-only), call time and notes, details and your lessons. The current and the new site are linked at the top. Opening the page clears its unread mark.
+- **Dashboard**: a ring chart on top (one ring per stage: Question sent, Response received, Site sent, Site reply, Call scheduled, Order received; tap a stage to filter), then every club grouped by stage. Stage headings open and close their group. Each row has the stage circle (tap to move the club), the club and its city, the phone number with whose it is (a person and their role, or reception), the call result (tap to step through not called, successfully called, unsuccessfully called, got callback) and a message icon while a reply is unopened.
+- **Club pages** (the plugin adds clubs): one timeline of stage changes and emails (read-only), your lessons, and a side column with the stage, the call result with time and notes, and the details (contact, role, phone, whose number, email, website, city), all editable in place. The current and the new site are linked at the top. Opening the page clears its unread mark.
 - **Templates**: the one **build prompt** for Claude Code (copy it and name the club; Claude Code looks the club up through the connector), the two tennis reference sites and reference zips it uses, the send-the-site email and the call-scheduling email. The plugin reads them when it drafts an email.
 - Clubs from other verticals stay in the database but are hidden everywhere, the plugin included. Settings → Export still includes them.
 

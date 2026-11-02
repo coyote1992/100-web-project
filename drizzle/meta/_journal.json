@@ -15,6 +15,13 @@
       "when": 1793633400188,
       "tag": "0001_call_status_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793655353770,
+      "tag": "0002_phone_owner_role",
+      "breakpoints": true
     }
   ]
 }

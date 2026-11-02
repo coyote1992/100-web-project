@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 import { dayTime } from "@/lib/format"
 import type { Message } from "@/db/schema"
 
-function Body({ text }: { text: string }) {
+export function Body({ text }: { text: string }) {
   if (text.length <= 600) return <p className="text-sm leading-relaxed whitespace-pre-line">{text}</p>
   return (
     <details className="group">

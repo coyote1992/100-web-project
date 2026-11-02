@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { PencilIcon, Trash2Icon, XIcon } from "lucide-react"
 import { addLesson, deleteLesson, deleteSite, markSeen, moveToStage, setCallStatus, updateLesson, updateSite } from "@/app/actions"
-import { CallToggle, StageMenu, STAGE_COLOR } from "@/components/app/stage"
+import { CallOptions, StageMenu, StageRing } from "@/components/app/stage"
 import { AutoField } from "@/components/app/auto-field"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Kbd } from "@/components/ui/kbd"
 import { Textarea } from "@/components/ui/textarea"
-import { BOARD, type BoardKey, type CallStatus } from "@/lib/flow"
-import { cn } from "@/lib/utils"
+import { BOARD_LABEL, CONTACT_ROLES, PHONE_OWNERS, type BoardKey, type CallStatus, type ContactRole, type PhoneOwner } from "@/lib/flow"
 
 const save = (id: string, key: string) => async (v: string) => {
   const res = await updateSite(id, { [key]: v })
@@ -56,17 +55,125 @@ export function CallControls({ id, callAt, callNotes }: { id: string; callAt: st
   )
 }
 
-export function DetailsControls({ id, site }: { id: string; site: { oldSiteUrl: string; contactName: string; city: string; email: string; phone: string } }) {
+function KVText({ label, value, onSave, type = "text", placeholder }: { label: string; value: string; onSave: (v: string) => Promise<unknown>; type?: string; placeholder?: string }) {
+  const id = React.useId()
+  const [v, setV] = React.useState(value)
+  const [prop, setProp] = React.useState(value)
+  if (prop !== value) {
+    setProp(value)
+    setV(value)
+  }
   return (
-    <div className="grid gap-4">
-      <AutoField label="Current website" value={site.oldSiteUrl} onSave={save(id, "oldSiteUrl")} placeholder="their-site.hu" />
-      <div className="grid grid-cols-2 gap-3">
-        <AutoField label="Contact" value={site.contactName} onSave={save(id, "contactName")} placeholder="Owner's name" />
-        <AutoField label="City" value={site.city} onSave={save(id, "city")} />
-      </div>
-      <AutoField label="Email. Matches incoming mail to this site" type="email" value={site.email} onSave={save(id, "email")} />
-      <AutoField label="Phone" type="tel" value={site.phone} onSave={save(id, "phone")} />
+    <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2">
+      <label htmlFor={id} className="text-[13px] text-muted-foreground">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={v}
+        placeholder={placeholder}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => v !== value && void onSave(v.trim())}
+        className="h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-[13.5px] transition-colors placeholder:text-muted-foreground/70 hover:bg-accent focus:border-input focus:bg-background focus:outline-none"
+      />
     </div>
+  )
+}
+
+function KVSelect<T extends string>({ label, value, options, labels, onSave }: { label: string; value: T; options: readonly T[]; labels: Record<T, string>; onSave: (v: T) => Promise<unknown> }) {
+  const id = React.useId()
+  const [v, setV] = React.useState(value)
+  const [prop, setProp] = React.useState(value)
+  if (prop !== value) {
+    setProp(value)
+    setV(value)
+  }
+  return (
+    <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2">
+      <label htmlFor={id} className="text-[13px] text-muted-foreground">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={v}
+        onChange={(e) => {
+          const next = e.target.value as T
+          setV(next)
+          void onSave(next)
+        }}
+        className="h-8 w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-transparent px-1.5 text-[13.5px] transition-colors hover:bg-accent focus:border-input focus:bg-background focus:outline-none"
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {labels[o]}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+/** Who to call and how to reach them. Every row edits in place and saves when you leave it. */
+export function DetailsList({
+  id,
+  site,
+}: {
+  id: string
+  site: { contactName: string; contactRole: ContactRole; phone: string; phoneOwner: PhoneOwner; email: string; oldSiteUrl: string; city: string }
+}) {
+  return (
+    <div className="grid gap-0.5">
+      <KVText label="Contact" value={site.contactName} onSave={save(id, "contactName")} placeholder="Name" />
+      <KVSelect label="Role" value={site.contactRole} options={CONTACT_ROLES} labels={{ unknown: "Unknown", owner: "Owner", trainer: "Trainer" }} onSave={save(id, "contactRole")} />
+      <KVText label="Phone" type="tel" value={site.phone} onSave={save(id, "phone")} placeholder="+36 …" />
+      <KVSelect label="Whose number" value={site.phoneOwner} options={PHONE_OWNERS} labels={{ unknown: "Not sure", person: "The contact", reception: "Reception" }} onSave={save(id, "phoneOwner")} />
+      <KVText label="Email" type="email" value={site.email} onSave={save(id, "email")} />
+      <KVText label="Website" value={site.oldSiteUrl} onSave={save(id, "oldSiteUrl")} placeholder="their-club.hu" />
+      <KVText label="City" value={site.city} onSave={save(id, "city")} />
+    </div>
+  )
+}
+
+/** The club's stage: its ring, the name, and a menu to move it. */
+export function StageBox({ id, board }: { id: string; board: BoardKey }) {
+  const [stage, apply] = React.useOptimistic(board, (_: BoardKey, next: BoardKey) => next)
+  const [, start] = React.useTransition()
+  return (
+    <div className="flex items-center gap-3.5">
+      <StageRing stage={stage} size={56} />
+      <div className="min-w-0">
+        <p className="display text-lg leading-tight">{BOARD_LABEL[stage]}</p>
+        <StageMenu
+          variant="link"
+          stage={stage}
+          onChange={(next) =>
+            start(async () => {
+              apply(next)
+              const res = await moveToStage(id, next)
+              if (!res.ok) toast.error(res.error)
+            })
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+export function CallBox({ id, callStatus }: { id: string; callStatus: CallStatus }) {
+  const [value, apply] = React.useOptimistic(callStatus, (_: CallStatus, next: CallStatus) => next)
+  const [, start] = React.useTransition()
+  return (
+    <CallOptions
+      value={value}
+      onChange={(next) =>
+        start(async () => {
+          apply(next)
+          const res = await setCallStatus(id, next)
+          if (!res.ok) toast.error(res.error)
+        })
+      }
+    />
   )
 }
 
@@ -148,7 +255,7 @@ export function LessonsPanel({ siteId, lessons }: { siteId: string; lessons: { i
                 </form>
               ) : (
                 <div className="flex items-start justify-between gap-3">
-                  <p className="display text-xl leading-snug text-pretty">{l.body}</p>
+                  <p className="border-l-2 border-court/40 pl-3 text-[15px] leading-relaxed text-pretty">{l.body}</p>
                   <span className="flex shrink-0 gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                     <button
                       aria-label="Edit lesson"
@@ -211,50 +318,6 @@ export function DeleteSite({ id, name }: { id: string; name: string }) {
         </DialogContent>
       </Dialog>
     </>
-  )
-}
-
-/** Stage and call outcome, the two things changed by hand. */
-export function StageStrip({ id, board, callStatus }: { id: string; board: BoardKey; callStatus: CallStatus }) {
-  const [state, apply] = React.useOptimistic({ board, callStatus }, (s, p: Partial<{ board: BoardKey; callStatus: CallStatus }>) => ({ ...s, ...p }))
-  const [, start] = React.useTransition()
-  const reached = BOARD.findIndex((b) => b.key === state.board)
-  return (
-    <div className="grid gap-4">
-      <ol className="grid grid-cols-6 gap-1" aria-label="Progress">
-        {BOARD.map((b, i) => (
-          <li key={b.key} className="min-w-0">
-            <span className="block h-1.5 rounded-full" style={{ background: i <= reached ? STAGE_COLOR[b.key] : "color-mix(in oklch, var(--foreground) 10%, transparent)" }} />
-            <span className={cn("mt-1.5 hidden truncate text-xs sm:block", i <= reached ? "text-foreground" : "text-muted-foreground")}>{b.label}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="-ml-2">
-          <StageMenu
-            stage={state.board}
-            onChange={(next) =>
-              start(async () => {
-                apply({ board: next })
-                const res = await moveToStage(id, next)
-                if (!res.ok) toast.error(res.error)
-              })
-            }
-          />
-        </div>
-        <CallToggle
-          labels
-          value={state.callStatus}
-          onChange={(next) =>
-            start(async () => {
-              apply({ callStatus: next })
-              const res = await setCallStatus(id, next)
-              if (!res.ok) toast.error(res.error)
-            })
-          }
-        />
-      </div>
-    </div>
   )
 }
 

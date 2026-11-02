@@ -5,7 +5,7 @@ import { z } from "zod"
 import { getDb } from "@/db"
 import { seed } from "@/db/seed"
 import * as d from "@/lib/domain"
-import { BOARD_TO, CALL_STATUSES, actionsFrom, isStage, type BoardKey } from "@/lib/flow"
+import { BOARD_TO, CALL_STATUSES, CONTACT_ROLES, PHONE_OWNERS, actionsFrom, isStage, type BoardKey } from "@/lib/flow"
 import { getWorld } from "@/lib/data"
 
 const done = () => revalidatePath("/", "layout")
@@ -90,6 +90,8 @@ const field = z.object({
   callAt: z.string().nullable(),
   build: z.enum(["todo", "building", "ready"]),
   questionVariant: z.string().max(300),
+  phoneOwner: z.enum(PHONE_OWNERS),
+  contactRole: z.enum(CONTACT_ROLES),
 })
 
 export async function updateSite(id: string, patch: Partial<z.input<typeof field>>) {

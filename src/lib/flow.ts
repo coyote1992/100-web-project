@@ -33,6 +33,14 @@ export const CALL_LABEL: Record<CallStatus, string> = {
   callback: "Got callback",
 }
 
+/** Whose phone number we have, and who that person is. Set by hand or by ChatGPT when it learns it. */
+export const PHONE_OWNERS = ["unknown", "person", "reception"] as const
+export type PhoneOwner = (typeof PHONE_OWNERS)[number]
+export const PHONE_OWNER_LABEL: Record<PhoneOwner, string> = { unknown: "Not sure", person: "A person", reception: "Reception" }
+export const CONTACT_ROLES = ["unknown", "owner", "trainer"] as const
+export type ContactRole = (typeof CONTACT_ROLES)[number]
+export const CONTACT_ROLE_LABEL: Record<ContactRole, string> = { unknown: "Role unknown", owner: "Owner", trainer: "Trainer" }
+
 /**
  * The six stages the dashboard shows. Each covers one or more flow stages.
  * "Not contacted" and "Lost" sit outside the six and only appear when a site is in them.

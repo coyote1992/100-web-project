@@ -24,6 +24,8 @@ do $do$ begin CREATE INDEX "sites_vertical_idx" ON "sites" USING btree ("vertica
 do $do$ begin CREATE INDEX "sites_email_idx" ON "sites" USING btree ("email"); exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 do $do$ begin ALTER TABLE "sites" ADD COLUMN "call_status" text DEFAULT 'none' NOT NULL; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 do $do$ begin ALTER TABLE "sites" ADD COLUMN "seen_at" timestamp with time zone; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
+do $do$ begin ALTER TABLE "sites" ADD COLUMN "phone_owner" text DEFAULT 'unknown' NOT NULL; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
+do $do$ begin ALTER TABLE "sites" ADD COLUMN "contact_role" text DEFAULT 'unknown' NOT NULL; exception when duplicate_table or duplicate_object or duplicate_column then null; end $do$;
 
 -- Nothing is readable with the public key: only the server's service key gets in.
 alter table public."events" enable row level security;

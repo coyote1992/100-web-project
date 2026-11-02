@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google"
+import { Bricolage_Grotesque, DM_Sans, Geist_Mono } from "next/font/google"
 import { Providers } from "@/components/app/providers"
 import { TopBar } from "@/components/app/top-bar"
 import { getWorld } from "@/lib/data"
@@ -8,9 +8,9 @@ import { dbKind } from "@/db/config"
 import { SETUP_SQL } from "@/db/setup-sql"
 import "./globals.css"
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "latin-ext"] })
+const body = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin", "latin-ext"] })
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
-const serif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin", "latin-ext"], weight: "400" })
+const display = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin", "latin-ext"] })
 
 export const metadata: Metadata = {
   title: { default: "Hundred", template: "%s · Hundred" },
@@ -54,7 +54,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const lookup = { sites: buildRows(world).map((r) => ({ id: r.id, name: r.name, city: r.city, board: r.board })) }
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${serif.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${body.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}>
       <body className="min-h-full">
         <Providers lookup={lookup}>
           <div className="flex min-h-dvh flex-col">
