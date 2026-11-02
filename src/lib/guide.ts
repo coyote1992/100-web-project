@@ -30,6 +30,9 @@ Mail that matches no site: don't create sites; tell me about it.`
 export const GUIDE_RULES = `## Adding firms
 When I give you tennis clubs, call add_sites with name, oldSiteUrl, email, city, contactName. Duplicates are ignored. The two reference sites live on the tennis vertical; change them with update_vertical only if I ask. Never mark a site as built unless I say so.
 
+## Building a club's new site
+The one build prompt lives in Templates: get_site gives it as drafts.buildPrompt with the club and the two reference sites filled in. Reference zips (style kit, photos): list_packages, then get_package for a download link. When the new site is live, save its link with update_site demoUrl.
+
 ## Sending emails
 Draft the email in the chat and wait for my OK before sending. After sending, always log it, so the app matches Gmail.
 

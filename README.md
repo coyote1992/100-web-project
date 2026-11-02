@@ -14,8 +14,8 @@ Gmail (outreach inbox), read by ChatGPT during the 30-minute sweep
 ```
 
 - **Dashboard**: a donut of every club by stage (Question sent, Response received, Site sent, Site reply, Call scheduled, Order received; Not contacted and Lost appear only when used). Click a stage to filter the list. Each club row has its stage (change it from the dropdown), a four-way call switch (not called, successfully called, unsuccessfully called, got callback) and a message icon while a reply is unopened.
-- **Club pages** (the plugin adds clubs): the stage and call outcome, the email conversation (read-only), what ChatGPT extracted from it, a **copy-ready build prompt** for Claude Code, the demo link and zip, call time and notes, details and your lessons. Opening the page clears its unread mark.
-- **Templates**: the two tennis reference sites (and reference zips), the build prompt, the send-the-site email, the call-scheduling email, and the two timing values. The plugin reads them when it drafts an email.
+- **Club pages** (the plugin adds clubs): the stage and call outcome, the email conversation (read-only), call time and notes, details and your lessons. The current and the new site are linked at the top. Opening the page clears its unread mark.
+- **Templates**: the one **build prompt** for Claude Code (copy it and name the club; Claude Code looks the club up through the connector), the two tennis reference sites and reference zips it uses, the send-the-site email and the call-scheduling email. The plugin reads them when it drafts an email.
 - Clubs from other verticals stay in the database but are hidden everywhere, the plugin included. Settings → Export still includes them.
 
 ## The plugin
@@ -57,7 +57,7 @@ The app talks to Supabase over HTTPS (its REST API), not a direct database conne
 2. **Vercel → Settings → Environment Variables** (Production, Secret):
    - `SUPABASE_URL`: your project URL, `https://xxxx.supabase.co`
    - `SUPABASE_SERVICE_ROLE_KEY`: the service_role (or secret) key. It bypasses all security, so it must never reach the browser.
-   - `APP_PASSWORD`: protects the app and approves the plugin sign-in.
+   - `APP_PASSWORD`: approves the ChatGPT / Claude sign-in. The app itself has no password: anyone with its address can open it.
    - `API_TOKEN`: any long random string; signs the plugin's access tokens.
 3. Redeploy, open `/api/health` (it checks each step), then follow **Settings → Connect ChatGPT**.
 

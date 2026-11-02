@@ -168,15 +168,6 @@ export default async function SettingsPage() {
         </div>
       </Block>
 
-      <Block title="Access" description="Protect the app with a password when it's deployed.">
-        <div className="grid gap-2 text-sm">
-          <Status on={!!process.env.APP_PASSWORD} label={process.env.APP_PASSWORD ? "Password protection is on" : "No password set: anyone with the URL can open it"} />
-          <p className="text-muted-foreground">
-            Set <code className="text-foreground">APP_PASSWORD</code> to turn on browser sign-in (any username). The ChatGPT API uses its own token, not this password.
-          </p>
-        </div>
-      </Block>
-
       <Block title="Data" description="Export a backup, load fictional demo data to explore, or start clean.">
         <DataActions hasData={world.verticals.length > 0 || world.sites.length > 0} />
       </Block>

@@ -12,35 +12,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Kbd } from "@/components/ui/kbd"
 import { Textarea } from "@/components/ui/textarea"
-import { BOARD, BUILD_LABEL, BUILD_STATES, type BoardKey, type BuildState, type CallStatus } from "@/lib/flow"
+import { BOARD, type BoardKey, type CallStatus } from "@/lib/flow"
 import { cn } from "@/lib/utils"
 
 const save = (id: string, key: string) => async (v: string) => {
   const res = await updateSite(id, { [key]: v })
   if (!res.ok) toast.error(res.error)
-}
-
-export function BuildControls({ id, build, demoUrl }: { id: string; build: BuildState; demoUrl: string }) {
-  const [pending, start] = React.useTransition()
-  return (
-    <div className="grid gap-4">
-      <div className="inline-grid grid-cols-3 rounded-lg bg-muted p-0.5" role="radiogroup" aria-label="Build status">
-        {BUILD_STATES.map((b) => (
-          <button
-            key={b}
-            role="radio"
-            aria-checked={build === b}
-            disabled={pending}
-            onClick={() => start(async () => void (await updateSite(id, { build: b })))}
-            className={cn("pressable h-8 rounded-md text-sm", build === b ? "bg-background font-medium shadow-[0_1px_2px_oklch(0_0_0/0.08)]" : "text-muted-foreground hover:text-foreground")}
-          >
-            {BUILD_LABEL[b]}
-          </button>
-        ))}
-      </div>
-      <AutoField label="Demo URL. Saving one marks the site ready" value={demoUrl} onSave={save(id, "demoUrl")} placeholder="their-club-demo.vercel.app" />
-    </div>
-  )
 }
 
 function localInput(iso: string | null) {

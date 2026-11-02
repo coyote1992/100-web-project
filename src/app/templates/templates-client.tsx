@@ -41,25 +41,6 @@ export function TemplateEditor({ field, value, customised, rows }: { field: "bui
   )
 }
 
-export function TimingFields({ siteFollowUpDays, callAfterSiteDays }: { siteFollowUpDays: number; callAfterSiteDays: number }) {
-  const save = (key: "siteFollowUpDays" | "callAfterSiteDays") => async (v: string) => {
-    const res = await saveTemplates({ [key]: Math.round(Number(v)) })
-    if (!res.ok) toast.error(res.error)
-  }
-  return (
-    <div className="grid gap-5 sm:grid-cols-2">
-      <div className="grid gap-1">
-        <AutoField label="Send the site after this many quiet days" type="number" value={String(siteFollowUpDays)} onSave={save("siteFollowUpDays")} className="max-w-56" />
-        <p className="text-sm text-muted-foreground">After the opening question. If they reply, the site goes out straight away.</p>
-      </div>
-      <div className="grid gap-1">
-        <AutoField label="Call after this many quiet days" type="number" value={String(callAfterSiteDays)} onSave={save("callAfterSiteDays")} className="max-w-56" />
-        <p className="text-sm text-muted-foreground">After the site went out with no answer, a call task appears.</p>
-      </div>
-    </div>
-  )
-}
-
 /** The two sites Claude Code is pointed at when it builds a club's new site. */
 export function ReferenceFields({ id, reference1, reference2 }: { id: string; reference1: string; reference2: string }) {
   const save = (key: "reference1" | "reference2") => async (value: string) => {

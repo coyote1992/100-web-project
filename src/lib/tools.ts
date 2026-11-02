@@ -33,21 +33,11 @@ const siteRef = z.object({
   site: z.string().min(1).describe("The firm: its name (partial is fine), its id, or its email address."),
 })
 
-/** A zip belongs to a firm or to a vertical: exactly one of the two is given. */
-const target = {
-  site: z.string().optional().describe("The firm: name, id or email. Give this or vertical."),
-  vertical: z.string().optional().describe("The vertical's name or id. Give this or site."),
-}
-type Target = { site?: string; vertical?: string }
-
-async function resolveTarget(a: Target) {
-  if (!!a.site === !!a.vertical) throw new d.DomainError("Give exactly one of site or vertical.", 422)
-  if (a.site) {
-    const r = await resolveSite(a.site)
-    return { owner: { kind: "site" as const, id: r.id }, label: r.name, page: `/sites/${r.id}`, arg: `site="${r.name}"` }
-  }
-  const v = await d.findVertical(a.vertical!)
-  return { owner: { kind: "vertical" as const, id: v.id }, label: v.name, page: `/templates`, arg: `vertical="${v.name}"` }
+/** Zips live in Templates, on the tennis vertical: style kits, photos and the like for the build. */
+async function referenceOwner() {
+  const v = (await getWorld()).verticals[0]
+  if (!v) throw new d.DomainError("There is no tennis vertical yet. Open the app and click Start with tennis.", 422)
+  return { owner: { kind: "vertical" as const, id: v.id }, label: "Templates" }
 }
 
 async function resolveSite(ref: string): Promise<SiteRow> {
@@ -159,7 +149,7 @@ export const TOOLS: Tool[] = [
   {
     name: "get_site",
     title: "Get one site in full",
-    description: "Everything about one firm: contact details, stage and history, the email conversation, extracted notes, lessons, call details, what is due, and ready-filled drafts of the send-the-site email, the call-scheduling email and the build prompt.",
+    description: "Everything about one club: contact details, current website, new site link, stage and history, call outcome, the email conversation, extracted notes, lessons, call details, and ready-filled drafts of the send-the-site email, the call-scheduling email and the build prompt (the one from Templates, with this club filled in).",
     input: siteRef,
     readOnly: true,
     run: async (a: { site: string }, ctx) => {
@@ -250,67 +240,66 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_package_upload",
-    title: "Start uploading a zip",
+    title: "Start uploading a reference zip",
     description:
-      "Step 1 of attaching a zip to a firm (its finished site; a new zip replaces the old one) or to a vertical (reference material; it can hold several). Pass site OR vertical. Returns a one-time upload URL and a ready curl command. Run it from a shell that has the zip (PUT the file to the URL), then call confirm_package_upload. Max 50 MB. If you have no shell, tell the user to drag the zip onto the page in the app instead.",
-    input: z.object({ ...target, filename: z.string().min(1).describe("File name, e.g. akademia-tenisz.zip") }),
-    run: async (a: Target & { filename: string }) => {
-      const t = await resolveTarget(a)
+      "Step 1 of adding a reference zip (style kit, photos, fonts) to Templates, where the build prompt points Claude Code. Returns a one-time upload URL and a ready curl command. Run it from a shell that has the zip (PUT the file to the URL), then call confirm_package_upload. Max 50 MB. If you have no shell, tell the user to drag the zip onto the Templates page instead.",
+    input: z.object({ filename: z.string().min(1).describe("File name, e.g. tennis-style-kit.zip") }),
+    run: async (a: { filename: string }) => {
+      const t = await referenceOwner()
       const u = await d.prepareUpload(t.owner, a.filename)
       return {
-        for: t.label,
         uploadUrl: u.uploadUrl,
         path: u.path,
         name: u.name,
         curl: `curl -X PUT -H "Content-Type: application/zip" --data-binary @${u.name} "${u.uploadUrl}"`,
-        next: `After the upload succeeds, call confirm_package_upload with ${t.arg}, path="${u.path}", name="${u.name}".`,
+        next: `After the upload succeeds, call confirm_package_upload with path="${u.path}", name="${u.name}".`,
       }
     },
   },
   {
     name: "confirm_package_upload",
-    title: "Finish uploading a zip",
-    description: "Step 2: attaches the uploaded zip once the PUT to the upload URL has succeeded. Use the path and name from get_package_upload.",
-    input: z.object({ ...target, path: z.string().min(3), name: z.string().min(1) }),
+    title: "Finish uploading a reference zip",
+    description: "Step 2: attaches the uploaded zip in Templates once the PUT to the upload URL has succeeded. Use the path and name from get_package_upload.",
+    input: z.object({ path: z.string().min(3), name: z.string().min(1) }),
     idempotent: true,
-    run: async (a: Target & { path: string; name: string }, ctx) => {
-      const t = await resolveTarget(a)
+    run: async (a: { path: string; name: string }, ctx) => {
+      const t = await referenceOwner()
       const pkg = await d.finishUpload(t.owner, a.path, a.name)
-      return { attached: pkg.name, sizeBytes: pkg.size, to: t.label, pageUrl: `${ctx.base}${t.page}` }
+      return { attached: pkg.name, sizeBytes: pkg.size, pageUrl: `${ctx.base}/templates` }
     },
   },
   {
     name: "list_packages",
-    title: "List attached zips",
-    description: "Lists the zips attached to a firm or a vertical (pass site OR vertical).",
-    input: z.object(target),
+    title: "List the reference zips",
+    description: "Lists the reference zips in Templates that every build should use (style kit, photos, fonts). Use get_package for a download link.",
+    input: z.object({}),
     readOnly: true,
-    run: async (a: Target) => {
-      const t = await resolveTarget(a)
+    run: async () => {
+      const t = await referenceOwner()
       const list = await d.listPackages(t.owner)
-      return { for: t.label, packages: list.map((p) => ({ id: p.id, name: p.name, sizeBytes: p.size, uploadedAt: new Date(p.at).toISOString() })) }
+      return { packages: list.map((p) => ({ id: p.id, name: p.name, sizeBytes: p.size, uploadedAt: new Date(p.at).toISOString() })) }
     },
   },
   {
     name: "get_package",
-    title: "Get a zip download link",
-    description: "A temporary (1 hour) download URL for a zip on a firm or a vertical. If there are several, say which one by name.",
-    input: z.object({ ...target, package: z.string().optional().describe("Package name or id, when there is more than one") }),
+    title: "Get a reference zip download link",
+    description: "A temporary (1 hour) download URL for one of the reference zips in Templates. If there are several, say which one by name.",
+    input: z.object({ package: z.string().optional().describe("Package name or id, when there is more than one") }),
     readOnly: true,
-    run: async (a: Target & { package?: string }) => {
-      const t = await resolveTarget(a)
+    run: async (a: { package?: string }) => {
+      const t = await referenceOwner()
       const { pkg, url } = await d.packageLink(t.owner, a.package)
-      return { for: t.label, name: pkg.name, sizeBytes: pkg.size, uploadedAt: new Date(pkg.at).toISOString(), downloadUrl: url }
+      return { name: pkg.name, sizeBytes: pkg.size, uploadedAt: new Date(pkg.at).toISOString(), downloadUrl: url }
     },
   },
   {
     name: "delete_package",
-    title: "Remove a zip",
-    description: "Deletes one zip (by name) from a firm or a vertical. Only when the user asks.",
-    input: z.object({ ...target, package: z.string().optional().describe("Package name or id. Omit only if there is exactly one.") }),
+    title: "Remove a reference zip",
+    description: "Deletes one reference zip (by name) from Templates. Only when the user asks.",
+    input: z.object({ package: z.string().optional().describe("Package name or id. Omit only if there is exactly one.") }),
     destructive: true,
-    run: async (a: Target & { package?: string }) => {
-      const t = await resolveTarget(a)
+    run: async (a: { package?: string }) => {
+      const t = await referenceOwner()
       const list = await d.listPackages(t.owner)
       if (!a.package && list.length > 1) throw new d.DomainError(`There are ${list.length} packages: ${list.map((p) => p.name).join(", ")}. Say which one.`, 422)
       return { removed: await d.removePackage(t.owner, a.package) }

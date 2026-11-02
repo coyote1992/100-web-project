@@ -1,19 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon, ArrowUpRightIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { getWorld } from "@/lib/data"
-import { listPackages } from "@/lib/domain"
 import { buildRows } from "@/lib/metrics"
-import { fillTemplate } from "@/lib/templates"
-import { EXTRACT_KINDS, EXTRACT_LABEL } from "@/lib/flow"
 import { cn } from "@/lib/utils"
 import { dayTime, host, href } from "@/lib/format"
 import { Page, Panel } from "@/components/app/page"
-import { CopyBlock } from "@/components/app/copy-block"
-import { PackageUpload } from "@/components/app/package-upload"
 import { Thread } from "./thread"
-import { BuildControls, CallControls, DeleteSite, DetailsControls, LessonsPanel, MarkSeen, StageStrip } from "./site-client"
+import { CallControls, DeleteSite, DetailsControls, LessonsPanel, MarkSeen, StageStrip } from "./site-client"
 
 export async function generateMetadata({ params }: PageProps<"/sites/[id]">): Promise<Metadata> {
   const { id } = await params
@@ -50,9 +45,6 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
   const world = await getWorld()
   const row = buildRows(world).find((r) => r.id === id)
   if (!row) notFound()
-  const pkgs = await listPackages({ kind: "site", id: row.id }).catch(() => [])
-  const { text: prompt, missing } = fillTemplate(world.templates.buildPrompt, row)
-  const extracts = EXTRACT_KINDS.map((k) => ({ kind: k, list: row.extracts.filter((e) => e.kind === k) })).filter((g) => g.list.length)
 
   return (
     <Page className="max-w-[1100px] pt-6 sm:pt-8">
@@ -93,51 +85,12 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
             <Thread messages={row.messages} name={row.contactName || row.name} />
           </Section>
 
-          {extracts.length > 0 && (
-            <Section title="From the emails" aside="Pulled out by ChatGPT">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {extracts.map(({ kind, list }) => (
-                  <div key={kind}>
-                    <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{EXTRACT_LABEL[kind]}</h3>
-                    <ul className="grid gap-1.5">
-                      {list.map((e) => (
-                        <li key={e.id} className="flex gap-2 text-sm text-pretty">
-                          <span aria-hidden className={cn("mt-2 size-1 shrink-0 rounded-full", kind === "objection" ? "bg-negative" : kind === "interest" ? "bg-positive" : "bg-foreground/40")} />
-                          {e.text}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
           <Section title="Lessons">
             <LessonsPanel siteId={row.id} lessons={row.lessons.map((l) => ({ id: l.id, body: l.body }))} />
           </Section>
         </div>
 
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
-          <Card title="Build prompt" aside={row.build === "ready" ? "Site ready" : row.build === "building" ? "Building" : "Not built"}>
-            {missing.length > 0 && (
-              <div className="mb-3 flex gap-2 rounded-lg border border-move-line bg-move-soft px-3 py-2 text-sm">
-                <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-                <p>
-                  Missing {missing.join(", ")}.{" "}
-                  <Link href="/templates" className="underline">
-                    Add it in Templates
-                  </Link>
-                </p>
-              </div>
-            )}
-            <CopyBlock text={prompt} label="Build prompt" hint="Paste it into Claude Code. It has the references and the old site." />
-            <div className="mt-4 grid gap-4 border-t pt-4">
-              <BuildControls id={row.id} build={row.build} demoUrl={row.demoUrl} />
-              <PackageUpload kind="site" id={row.id} packages={pkgs} title="Package (zip)" />
-            </div>
-          </Card>
-
           <Card title="Call" aside={row.callAt ? dayTime(row.callAt) : undefined}>
             <CallControls id={row.id} callAt={row.callAt?.toISOString() ?? null} callNotes={row.callNotes} />
           </Card>
